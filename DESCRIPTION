@@ -1,0 +1,29 @@
+Package: maldiscrim
+Title: Analyse et Discrimination de Spectres de masses MALDI-TOF
+Version: 0.0.0.9000
+Authors@R: 
+    person("AGBESSI Stowe", "Last", , "agb.stowe@gmail.com", role = c("aut", "cre"))
+Description: Cet outil permet de realiser le traitement et l'analyse discriminante de spectres de masse MALDI-TOF 
+    en se servant de methode d'analyse de donnees fonctionnelles telles que la methode statistique Functionnel 
+    Partial Least Square - Discriminant Analysis (FPLS-DA) et de deep learning Convolutional Neural Network (CNN). 
+    Il inclut des tranformations en fonctions de base B-Splines et en Ondelettes
+License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
+    license
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Imports: 
+    fastDummies,
+    fda,
+    ggplot2,
+    jsonlite,
+    lubridate,
+    magrittr,
+    maldipickr,
+    MALDIquant,
+    MALDIquantForeign,
+    MASS,
+    plotly,
+    pls,
+    reticulate,
+    wavelets
