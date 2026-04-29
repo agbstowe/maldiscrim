@@ -6,9 +6,8 @@ Authors@R:
 Description: Cet outil permet de realiser le traitement et l'analyse discriminante de spectres de masse MALDI-TOF 
     en se servant de methode d'analyse de donnees fonctionnelles telles que la methode statistique Functionnel 
     Partial Least Square - Discriminant Analysis (FPLS-DA) et de deep learning Convolutional Neural Network (CNN). 
-    Il inclut des tranformations en fonctions de base B-Splines et en Ondelettes
-License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
-    license
+    Il inclut des tranformations en fonctions de base B-Splines et en Ondelettes. 
+License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
@@ -26,6 +25,7 @@ Imports:
     plotly,
     pls,
     reticulate,
+    umap,
     wavelets
 URL: https://github.com/agbstowe/maldiscrim
 BugReports: https://github.com/agbstowe/maldiscrim/issues
