@@ -1,0 +1,43 @@
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+# maldiscrim
+
+<!-- badges: start -->
+<!-- badges: end -->
+
+`maldiscrim` is an R package designed for functional data
+discrimination, specifically using fPLS-DA methods and deep learning
+approach to classify and analyze spectroscopic data.
+
+## Installation
+
+You can install the development version of maldiscrim from
+[GitHub](https://github.com/agbstowe/maldiscrim) with:
+
+``` r
+# Option 1: Using devtools (Standard)
+install.packages("devtools")
+devtools::install_github("agbstowe/maldiscrim")
+
+# Option 2: Using pak (Fast/Modern)
+# install.packages("pak")
+pak::pak("agbstowe/maldiscrim")
+```
+
+## Example
+
+This is a basic example which shows you how to solve a common problem:
+
+``` r
+library(maldiscrim)
+## basic example code
+```
+
+What is special about using `README.Rmd` instead of just `README.md`?
+You can include R chunks like so:
+
+You’ll still need to render `README.Rmd` regularly, to keep `README.md`
+up-to-date. `devtools::build_readme()` is handy for this.
+
+You can also embed plots, for example:
