@@ -27,3 +27,5 @@ Imports:
     pls,
     reticulate,
     wavelets
+URL: https://github.com/agbstowe/maldiscrim
+BugReports: https://github.com/agbstowe/maldiscrim/issues
