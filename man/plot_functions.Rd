@@ -27,7 +27,7 @@ plot_spectra_umap(object, n_neighbors = 15, min_dist = 0.1)
 
 \item{comp}{Axes de projection des scores (par défaut 1 et 2)}
 
-\item{show_proba}{Booléen. Si TRUE, colorie par groupe et ajuste la transparence (alpha) selon la probabilité de prédiction.}
+\item{show_proba}{Booleen. Si TRUE, colorie par groupe et ajuste la transparence (alpha) selon la probabilite de prediction.}
 
 \item{...}{further arguments passed to or from other methods.}
 }

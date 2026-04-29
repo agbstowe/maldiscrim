@@ -23,15 +23,15 @@ fit.fPLS_DA(
 
 \item{method}{Méthode de décomposition en bases fonctionnelles : "bsplines" ou "wavelets".}
 
-\item{nbasis}{an integer variable specifying the number of basis functions (1050 par défaut pour bsplines).}
+\item{nbasis}{an integer variable specifying the number of basis functions (1050 by default pour bsplines).}
 
-\item{ncomp}{Nombre de composantes PLS à retenir (par défaut 20).}
+\item{ncomp}{Nombre de composantes PLS a retenir (by default 20).}
 
 \item{argvals}{description}
 
 \item{rangeval}{description}
 
-\item{n_folds}{Nombre de plis pour la validation croisée (par défaut 5).}
+\item{n_folds}{Nombre de plis pour la validation croisee (by default 5).}
 
 \item{filter}{Either a \code{wt.filter} object, a character string
     indicating which wavelet filter to use in the decomposition, or a

@@ -5,7 +5,7 @@
 #' @param halfWindowSize Fenetre de valeurs pour le lissage SavitzkyGolay.
 #' @return Une matrice d'intensites (MSP) ou chaque ligne est un replica biologique normalise.
 #' @export
-process_maldi <- function(data_file, method_baseline = "SNIP", halfWindowSize = 10) { # length intensity à ajouter
+process_maldi <- function(data_file, method_baseline = "SNIP", halfWindowSize = 10) { # length intensity a ajouter
 
   # 1. Liste des dossiers de souches
   souches <- list.dirs(data_file, full.names = FALSE, recursive = FALSE)
@@ -16,7 +16,7 @@ process_maldi <- function(data_file, method_baseline = "SNIP", halfWindowSize = 
     ### Importation via MALDIquantForeign
     spectra <- MALDIquantForeign::import(file_souche, verbose = FALSE)
 
-    ### Pipeline de prétraitement
+    ### Pipeline de pretraitement
     #Stabilisation de la variance
     spectra <- MALDIquant::transformIntensity(spectra, method = "sqrt")
     #Smoothing
@@ -26,21 +26,21 @@ process_maldi <- function(data_file, method_baseline = "SNIP", halfWindowSize = 
     #Etalonnage/normalisation de l'intensite
     spectra <- MALDIquant::calibrateIntensity(spectra, method = "TIC")
 
-    # Groupement par Réplicas Biologiques (via métadonnées). On utilise la logique Nom du réplicas + Mois
+    # Groupement par Replicas Biologiques (via metadonnees). On utilise la logique Nom du replicas + Mois
     strain <- factor(sapply(spectra, function(x) {
       paste0(MALDIquant::metaData(x)$fullName, "_", lubridate::month(MALDIquant::metaData(x)$acquisitionDate))
     }))
     strain_spectra <- split(spectra, strain)
 
 
-    # Alignement et calcul du spectre moyen (MSP) pour chaque réplica bio
+    # Alignement et calcul du spectre moyen (MSP) pour chaque replica bio
     msp_list <- lapply(strain_spectra, function(spectralist) {
       aligned <- MALDIquant::alignSpectra(spectralist, halfWindowSize = 20, SNR = 2, tolerance = 0.001, warpingMethod = "lowess")
       return(MALDIquant::averageMassSpectra(aligned, method = "mean"))
     })
 
 
-    # Chaque colonne est un replica bio (MSP) et on transforme en vecteur numérique (longueur fixé à 20664 par défaut)
+    # Chaque colonne est un replica bio (MSP) et on transforme en vecteur numerique (longueur fixe a 20664 par defaut)
     msp_souche <- do.call(cbind, lapply(msp_list, function(msp_obj) {
       intensity <- msp_obj@intensity
       length(intensity) <- 20664
@@ -48,7 +48,7 @@ process_maldi <- function(data_file, method_baseline = "SNIP", halfWindowSize = 
       return(intensity)
     }))
 
-    # On transpose la matrice msp_souche (lignes = réplicats bio, colonnes = masses)
+    # On transpose la matrice msp_souche (lignes = replicas bio, colonnes = masses)
     msp_souche <- t(msp_souche)
 
     # On identifie les lignes avec le nom du dossier parent (la souche)

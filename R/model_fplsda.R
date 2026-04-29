@@ -2,12 +2,13 @@
 #'
 #' @param data Matrice de donnees MSP transformees pour l'entrainement du modele.
 #' @param method Méthode de décomposition en bases fonctionnelles : "bsplines" ou "wavelets".
-#' @param nbasis an integer variable specifying the number of basis functions (1050 par défaut pour bsplines).
-#' @param ncomp Nombre de composantes PLS à retenir (par défaut 20).
+#' @param nbasis an integer variable specifying the number of basis functions (1050 by default pour bsplines).
+#' @param ncomp Nombre de composantes PLS a retenir (by default 20).
 #' @param argvals description
 #' @param rangeval description
-#' @param n_folds Nombre de plis pour la validation croisée (par défaut 5).
+#' @param n_folds Nombre de plis pour la validation croisee (by default 5).
 #' @inheritParams wavelets::dwt
+#' @importFrom stats sd aggregate
 #' @export
 fit.fPLS_DA <- function(data,
                           method = c("bsplines", "wavelets"),
@@ -32,13 +33,13 @@ fit.fPLS_DA <- function(data,
 
   # 1. Décomposition selon la méthode choisie
   if (method == "bsplines") {
-    message("Utilisation de la décomposition fonctionnelle en B-splines.")
+    message("Utilisation de la decomposition fonctionnelle en B-splines.")
     basis_obj <- fda::create.bspline.basis(rangeval = rangeval, nbasis = nbasis)
     fd_obj <- fda::Data2fd(argvals = argvals, y = t(data), basisobj = basis_obj)
     coef_matrix <- t(fd_obj$coefs)
     }
   else if (method == "wavelets") {
-    message("Utilisation de la décomposition fonctionnelle en ondelettes.")
+    message("Utilisation de la decomposition fonctionnelle en ondelettes.")
 
     max_levels <- floor(log2(ncol(data)))
 
@@ -47,29 +48,29 @@ fit.fPLS_DA <- function(data,
       # log2(20664) donne environ 14.3, donc floor() nous donne 14
       n.levels <- max_levels
     } else if (n.levels > max_levels) {
-      warning(paste("n.levels trop grand. Réglé automatiquement sur", max_levels))
+      warning(paste("n.levels trop grand. Regle automatiquement sur", max_levels))
       n.levels <- max_levels
     }
 
     # 3. Validation de la pertinence du 'level' (Garde-fou scientifique)
     # On s'assure qu'au niveau choisi, il reste assez de coefficients (ici > 20 pour éviter que la PLS ne plante)
-    # Nombre théorique de coeffs ~= Longueur / 2^level
+    # Nombre theorique de coeffs ~= Longueur / 2^level
     n_coef_theorique <- floor(ncol(data) / (2^level))
 
     if (n_coef_theorique < 20) {
       new_level <- max(1, floor(log2(ncol(data) / 20)))
-      warning(paste("Le level choisi ", level, " est trop élevé pour satisfaire la PLS. Ajustement automatique à : ", new_level))
+      warning(paste("Le level choisi ", level, " est trop eleve pour satisfaire la PLS. Ajustement automatique a : ", new_level))
       level <- new_level
     }
 
     if (level > n.levels) {
-      warning(paste("Le level choisi ", level, " supérieur au nombre total de niveaux. Ajustement à ", n.levels))
+      warning(paste("Le level choisi ", level, " superieur au nombre total de niveaux. Ajustement a ", n.levels))
       level <- n.levels
     }
 
     # On applique la DWT sur chaque spectre (chaque ligne de data)
-    # On utilise 'boundary="periodic"' pour éviter les effets de bord au début/fin du spectre
-    # On utilise apply pour créer une liste contenant les objets dwt
+    # On utilise 'boundary="periodic"' pour eviter les effets de bord au début/fin du spectre
+    # On utilise apply pour creer une liste contenant les objets dwt
     wt_list <- apply(data, 1, function(x) {
       wavelets::dwt(x, filter = filter, n.levels = n.levels, boundary = boundary)
     })
@@ -82,7 +83,7 @@ fit.fPLS_DA <- function(data,
   # 2. PLS sur ncomp composantes et Gestion de la variance nulle
   y_dummy <- fastDummies::dummy_cols(groups, remove_selected_columns = TRUE)
 
-  max_search <- min(nrow(data) - 1, 20) # On cherche jusqu'à 20 composantes max pour la pls pour éviter un éventuelle sur apprentissage
+  max_search <- min(nrow(data) - 1, 20) # On cherche jusqu'a 20 composantes max pour la pls pour eviter un eventuelle sur apprentissage
 
   pls_mod <- pls::plsr(as.matrix(y_dummy) ~ coef_matrix, ncomp = max_search, method = "kernelpls",
                        validation = "CV", segments = n_folds)
@@ -91,10 +92,10 @@ fit.fPLS_DA <- function(data,
   if (!is.null(ncomp)) {
     # L'utilisateur a fourni une valeur pour ncomp et on borne la valeur par max_search pour éviter les plantages.
     ncomp <- min(ncomp, max_search)
-    message("Nombre de composantes optimisé automatiquement à ", ncomp, " pour la PLS")
+    message("Nombre de composantes optimise automatiquement a ", ncomp, " pour la PLS")
 
   } else {
-    # Calcul automatique du ncomp optimal via la méthode onesigma de la fonction selectNcomp
+    # Calcul automatique du ncomp optimal via la methode onesigma de la fonction selectNcomp
     rmsep_data <- pls::RMSEP(pls_mod, estimate = "CV")$val
     n_responses <- dim(rmsep_data)[1]
 
@@ -109,7 +110,7 @@ fit.fPLS_DA <- function(data,
     })
 
     ncomp <- max(ncomp_vec)
-    message("Nombre de composantes optimisé automatiquement à ", ncomp, " pour la PLS")
+    message("Nombre de composantes optimise automatiquement a ", ncomp, " pour la PLS")
   }
 
   # Calcul du filtrage de variance sur les scores
@@ -118,7 +119,7 @@ fit.fPLS_DA <- function(data,
   f1 <- apply(scores - as.matrix(group_means[groups, ]), 2, sd)
   const_idx <- f1 < 0.0001
 
-  # 3. Modèle LDA
+  # 3. Modele LDA
   scores_clean <- scores[, !const_idx]
   lda_mod <- MASS::lda(x = scores_clean, grouping = groups)
 
@@ -151,21 +152,21 @@ fit.fPLS_DA <- function(data,
 #' If omitted, the fitted values are used.   ###################" Revoir le newdata et le rendre optionnel
 #' @param threshold Seuil de validation du type de la souche
 #' @param ... further arguments passed to or from other methods.
-#'
+#' @importFrom stats predict
 #' @export
 predict.fPLS_DA <- function(object, newdata, threshold = NULL) {
 
   # VALIDATION DÉFENSIF
   if (!is.matrix(newdata) && !is.data.frame(newdata)) {
-    stop("newdata doit être une matrice ou un data.frame.")
+    stop("newdata doit etre une matrice ou un data.frame.")
   }
   # # Vérification cruciale : la taille du spectre. On compare avec la longueur de argvals
   # if (ncol(newdata) != length(object$argvals)) {
-  #   stop(paste("Erreur : newdata possède", ncol(newdata),
-  #              "colonnes, mais le modèle a été entraîné avec", length(object$argvals), "colonnes."))
+  #   stop(paste("Erreur : newdata possede", ncol(newdata),
+  #              "colonnes, mais le modèle a ete entraine avec", length(object$argvals), "colonnes."))
   # }
 
-  # 1. Décomposition des nouvelles données avec la base du modèle
+  # 1. Decomposition des nouvelles donnees avec la base du modele
   if (object$method == "bsplines") {
     fd_new <- fda::Data2fd(argvals = object$argvals, y = t(newdata), basisobj = object$basis)
     new_coefs <- t(fd_new$coefs)
@@ -183,7 +184,7 @@ predict.fPLS_DA <- function(object, newdata, threshold = NULL) {
   # 3. Filtrage des composantes constantes
   clean_scores <- data.frame(pls_scores[, !object$const_idx])
 
-  # On force les noms de colonnes à être identiques à ceux du modèle LDA original
+  # On force les noms de colonnes a etre identiques a ceux du modele LDA original
   colnames(clean_scores) <- colnames(object$lda_model$means)
 
   lda_res <- predict(object$lda_model, newdata = clean_scores)
@@ -193,7 +194,7 @@ predict.fPLS_DA <- function(object, newdata, threshold = NULL) {
   max_probs <- apply(lda_res$posterior, 1, max)
 
   if (!is.null(threshold)) {
-    final_class[max_probs < threshold] <- "Indétermine"
+    final_class[max_probs < threshold] <- "Indetermine"
   }
 
   return(list(
@@ -210,10 +211,10 @@ predict.fPLS_DA <- function(object, newdata, threshold = NULL) {
 #' @param object ...
 #' @export
 summary_spectra <- function(object) {
-  cat("Résumé du Modèle maldiscrim \n")
-  cat("Méthode de base :", object$method, "\n")
+  cat("Resume du Modele maldiscrim \n")
+  cat("Methode de base :", object$method, "\n")
   if(object$method == "bsplines") cat("Nombre de bases  :", object$nbasis, "\n")
-  cat("Composantes PLS  :", object$ncomp, " (", sum(object$const_idx), " supprimées)\n", sep="")
+  cat("Composantes PLS  :", object$ncomp, " (", sum(object$const_idx), " supprimees)\n", sep="")
   cat("Nombre de souches :", length(object$labels), "\n")
-  cat("Souches identifiées :", paste(object$labels, collapse=","), "\n")
+  cat("Souches identifiees :", paste(object$labels, collapse=","), "\n")
 }
