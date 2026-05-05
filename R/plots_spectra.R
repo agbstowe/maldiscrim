@@ -1,14 +1,11 @@
-#' Visualisations des resultats de l'analyse discriminante
-#' PROJECTION 3D dans l'espace des composantes de la PLS
-#' PROJECTION 2D dans le plan des composantes de la PLS
-#' Visualisation graphique de la VARIANCE EXPLIQUEE des composantes PLS (Scree Plot)
+# Visualisation graphique de la VARIANCE EXPLIQUEE des composantes PLS (Scree Plot)
 #  UMAP sur les scores PLS du modele de discrimination
 #' @param object Un objet de classe 'spectra_model'
 #' @param ... further arguments passed to or from other methods.
 #' @name plot_functions
 NULL
 
-# PROJECTION 3D dans l'espace des composantes de la PLS
+#' PROJECTION 3D dans l'espace des composantes de la PLS
 #' @rdname plot_functions
 #' @param comp Axes de projection des scores (par defaut 1, 2 et 3)
 #' @param show_proba Booleen. Si TRUE, colorie par groupe et ajuste la transparence (alpha) selon la probabilite de prediction.
@@ -44,7 +41,7 @@ plot_spectra_3d <- function(object, comp = c(1, 2, 3), show_proba = FALSE , ...)
 
   p <- plotly::plot_ly(scores_df, x = ~X, y = ~Y, z = ~Z, color = ~Souche,
                   type = 'scatter3d', mode = 'markers', colors = "Set1",
-                  marker = list(size = 2,...))
+                  opacity = alpha_val, marker = list(size = 2,...))
 
   p <- plotly::layout(p,scene = list(xaxis = list(title = paste0("Comp ", comp[1]), range = xlims),
                                 yaxis = list(title = paste0("Comp ", comp[2]), range = ylims),
@@ -56,7 +53,7 @@ plot_spectra_3d <- function(object, comp = c(1, 2, 3), show_proba = FALSE , ...)
 
 
 
-#  PROJECTION 2D dans le plan des composantes de la PLS
+#' PROJECTION 2D dans le plan des composantes de la PLS
 #' @rdname plot_functions
 #' @param object a fitted object of class inheriting from "fPLS_DA".
 #' @param comp Axes de projection des scores (par défaut 1 et 2)
@@ -111,7 +108,7 @@ plot_spectra_2d <- function(object, comp = c(1, 2), show_proba = FALSE, ...) {
 
 
 
-#  Visualisation graphique de la VARIANCE EXPLIQUEE des composantes PLS (Scree Plot)
+#' Visualisation graphique de la VARIANCE EXPLIQUEE des composantes PLS (Scree Plot)
 #' @rdname plot_functions
 #' @export
 plot_pls_var <- function(object) {
@@ -125,7 +122,7 @@ plot_pls_var <- function(object) {
 
 
 
-#  Visualisation de la representativite des variables dans la construction des composantes de la PLS (Loadings/Weights)
+#'  Visualisation de la representativite des variables dans la construction des composantes de la PLS (Loadings/Weights)
 #' @rdname plot_functions
 #' @export
 plot_pls_weights <- function(object, comp = 1) {
@@ -140,7 +137,7 @@ plot_pls_weights <- function(object, comp = 1) {
 
 
 
-#  UMAP sur les scores PLS du modele de discrimination
+#' UMAP sur les scores PLS du modele de discrimination
 #' @rdname plot_functions
 #' @param object a fitted object of class inheriting from "fPLS_DA".
 #' @inheritParams umap::umap
@@ -191,4 +188,3 @@ plot_spectra_umap <- function(object, n_neighbors = 15, min_dist = 0.1, show_pro
 
   return(p)
 }
-
