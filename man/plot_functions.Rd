@@ -12,15 +12,21 @@ PROJECTION 3D dans l'espace des composantes de la PLS
 PROJECTION 2D dans le plan des composantes de la PLS
 Visualisation graphique de la VARIANCE EXPLIQUEE des composantes PLS (Scree Plot)}
 \usage{
-plot_spectra_3d(object, comp = c(1, 2, 3))
+plot_spectra_3d(object, comp = c(1, 2, 3), show_proba = FALSE, ...)
 
-plot_spectra_2d(object, comp = c(1, 2), show_proba = FALSE)
+plot_spectra_2d(object, comp = c(1, 2), show_proba = FALSE, ...)
 
 plot_pls_var(object)
 
 plot_pls_weights(object, comp = 1)
 
-plot_spectra_umap(object, n_neighbors = 15, min_dist = 0.1)
+plot_spectra_umap(
+  object,
+  n_neighbors = 15,
+  min_dist = 0.1,
+  show_proba = FALSE,
+  ...
+)
 }
 \arguments{
 \item{object}{a fitted object of class inheriting from "fPLS_DA".}

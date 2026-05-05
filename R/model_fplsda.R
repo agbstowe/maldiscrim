@@ -154,7 +154,7 @@ fit.fPLS_DA <- function(data,
 #' @param ... further arguments passed to or from other methods.
 #' @importFrom stats predict
 #' @export
-predict.fPLS_DA <- function(object, newdata, threshold = NULL) {
+predict.fPLS_DA <- function(object, newdata, threshold = NULL, ...) {
 
   # VALIDATION DÉFENSIF
   if (!is.matrix(newdata) && !is.data.frame(newdata)) {

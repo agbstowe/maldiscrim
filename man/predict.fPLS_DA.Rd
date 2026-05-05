@@ -4,7 +4,7 @@
 \alias{predict.fPLS_DA}
 \title{Predict Method for fPLS_DA fits}
 \usage{
-\method{predict}{fPLS_DA}(object, newdata, threshold = NULL)
+\method{predict}{fPLS_DA}(object, newdata, threshold = NULL, ...)
 }
 \arguments{
 \item{object}{a fitted object of class inheriting from "fPLS_DA".}

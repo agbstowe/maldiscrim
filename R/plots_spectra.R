@@ -11,40 +11,79 @@ NULL
 # PROJECTION 3D dans l'espace des composantes de la PLS
 #' @rdname plot_functions
 #' @param comp Axes de projection des scores (par defaut 1, 2 et 3)
+#' @param show_proba Booleen. Si TRUE, colorie par groupe et ajuste la transparence (alpha) selon la probabilite de prediction.
+#' @param ... further arguments passed to or from other methods like ggplot graphic topics.
 #' @export
-plot_spectra_3d <- function(object, comp = c(1, 2, 3)) {
+plot_spectra_3d <- function(object, comp = c(1, 2, 3), show_proba = FALSE , ...) {
   scores_df <- as.data.frame(object$pls_model$scores[, comp])
   colnames(scores_df) <- c("X", "Y", "Z")
   scores_df$Souche <- as.factor(object$labels)
 
-  p <- plotly::plot_ly(scores_df, x = ~X, y = ~Y, z = ~Z, color = ~Souche,
-                  type = 'scatter3d', mode = 'markers')
+  # Gestion de la probabilité d'appartenance aux groupes.
+  alpha_val <- 1 # Alpha par défaut
+  if (show_proba) {
+    raw_scores <- object$pls_model$scores[, 1:object$ncomp, drop = FALSE]
+    clean_scores <- data.frame(raw_scores[, !object$const_idx, drop = FALSE])
+    colnames(clean_scores) <- colnames(object$lda_model$means)
 
-  p <- plotly::layout(p,scene = list(xaxis = list(title = paste0("Comp ", comp[1])),
-                                yaxis = list(title = paste0("Comp ", comp[2])),
-                                zaxis = list(title = paste0("Comp ", comp[3]))
+    lda_res <- stats::predict(object$lda_model, newdata = clean_scores)
+    scores_df$Proba <- apply(lda_res$posterior, 1, max)
+    alpha_val <- scores_df$Proba # L'alpha devient dynamique
+  }
+
+  # Calcul automatique des marges. On ajoute 10% d'espace sur chaque axe
+  get_lims <- function(vec) {
+    r <- range(vec)
+    d <- diff(r)
+    c(r[1] - 0.1 * d, r[2] + 0.1 * d)
+  }
+
+  xlims <- get_lims(scores_df$X)
+  ylims <- get_lims(scores_df$Y)
+  zlims <- get_lims(scores_df$Z)
+
+  p <- plotly::plot_ly(scores_df, x = ~X, y = ~Y, z = ~Z, color = ~Souche,
+                  type = 'scatter3d', mode = 'markers', colors = "Set1",
+                  marker = list(size = 2,...))
+
+  p <- plotly::layout(p,scene = list(xaxis = list(title = paste0("Comp ", comp[1]), range = xlims),
+                                yaxis = list(title = paste0("Comp ", comp[2]), range = ylims),
+                                zaxis = list(title = paste0("Comp ", comp[3]), range = zlims)
                                 ))
 
   return(p)
 }
+
+
 
 #  PROJECTION 2D dans le plan des composantes de la PLS
 #' @rdname plot_functions
 #' @param object a fitted object of class inheriting from "fPLS_DA".
 #' @param comp Axes de projection des scores (par défaut 1 et 2)
 #' @param show_proba Booleen. Si TRUE, colorie par groupe et ajuste la transparence (alpha) selon la probabilite de prediction.
+#' @param ... further arguments passed to or from other methods like ggplot graphic topics.
 #' @export
-plot_spectra_2d <- function(object, comp = c(1, 2), show_proba = FALSE) {
+plot_spectra_2d <- function(object, comp = c(1, 2), show_proba = FALSE, ...) {
   # Construction du dataframe de base
   df <- data.frame(object$pls_model$scores[, comp])
   colnames(df) <- c("x", "y")
   df$Souche <- as.factor(object$labels)
 
+  # On prend les min/max des composantes et on ajoute 10% de marge de chaque côté
+  range_x <- range(df$x)
+  range_y <- range(df$y)
+
+  # Calcul des marges (expand)
+  xlim <- c(range_x[1] - 0.1 * diff(range_x), range_x[2] + 0.1 * diff(range_x))
+  ylim <- c(range_y[1] - 0.1 * diff(range_y), range_y[2] + 0.1 * diff(range_y))
+
   # Initialisation du plot
   p <- ggplot2::ggplot(df, ggplot2::aes(x = x, y = y, color = Souche)) +
     ggplot2::theme_minimal() +
     ggplot2::labs(x = paste("Comp", comp[1]), y = paste("Comp", comp[2])) +
-    ggplot2::scale_color_brewer(palette = "Set1")
+    ggplot2::scale_color_brewer(palette = "Set1") +
+    # ON COORD_CARTESIAN avec les marges calculées pour l'affichage par défaut
+    ggplot2::coord_cartesian(xlim = xlim, ylim = ylim)
 
   # Gestion de la probabilite si TRUE
   if (show_proba) {
@@ -70,6 +109,8 @@ plot_spectra_2d <- function(object, comp = c(1, 2), show_proba = FALSE) {
   return(p)
 }
 
+
+
 #  Visualisation graphique de la VARIANCE EXPLIQUEE des composantes PLS (Scree Plot)
 #' @rdname plot_functions
 #' @export
@@ -81,6 +122,8 @@ plot_pls_var <- function(object) {
     ggplot2::geom_bar(stat = "identity", fill = "steelblue") +
     ggplot2::labs(title = "Variance expliquée par composante", y = "% Variance")
 }
+
+
 
 #  Visualisation de la representativite des variables dans la construction des composantes de la PLS (Loadings/Weights)
 #' @rdname plot_functions
@@ -95,18 +138,57 @@ plot_pls_weights <- function(object, comp = 1) {
     ggplot2::labs(title = paste("Influence des masses sur la Comp", comp))
 }
 
+
+
 #  UMAP sur les scores PLS du modele de discrimination
 #' @rdname plot_functions
+#' @param object a fitted object of class inheriting from "fPLS_DA".
+#' @inheritParams umap::umap
+#' @param show_proba Booleen. Si TRUE, colorie par groupe et ajuste la transparence (alpha) selon la probabilite de prediction.
+#' @param ... further arguments passed to or from other methods.
 #' @export
-plot_spectra_umap <- function(object, n_neighbors = 15, min_dist = 0.1) {
+plot_spectra_umap <- function(object, n_neighbors = 15, min_dist = 0.1, show_proba = FALSE, ...) {
   # On utilise les scores PLS comme base pour l'UMAP (plus robuste que les spectres bruts)
-  umap_res <- umap::umap(as.matrix(unclass(object$pls_model$scores)), n_neighbors = n_neighbors, min_dist = min_dist)
+  umap_res <- umap::umap(as.matrix(unclass(object$pls_model$scores)), n_neighbors = n_neighbors, min_dist = min_dist, ...)
   df <- data.frame(umap_res$layout)
   colnames(df) <- c("U1", "U2")
   df$Souche <- as.factor(object$labels)
 
-  ggplot2::ggplot(df, ggplot2::aes(U1, U2, color = Souche)) +
-    ggplot2::geom_point(size = 1, alpha = 0.8) +
+  # Gestion de l'alpha via show_proba
+  # alpha_val <- 1
+  if (show_proba) {
+    raw_scores <- object$pls_model$scores[, 1:object$ncomp, drop = FALSE]
+    clean_scores <- data.frame(raw_scores[, !object$const_idx, drop = FALSE])
+    colnames(clean_scores) <- colnames(object$lda_model$means)
+
+    lda_res <- stats::predict(object$lda_model, newdata = clean_scores)
+    df$Proba <- apply(lda_res$posterior, 1, max)
+
+    # Création du plot avec transparence dynamique
+    p <- ggplot2::ggplot(df, ggplot2::aes(U1, U2, color = Souche)) +
+      ggplot2::geom_point(ggplot2::aes(alpha = Proba), size = 2) +
+      ggplot2::scale_alpha_continuous(limits = c(0, 1), range = c(0.2, 1))
+  } else {
+    # Plot standard
+    p <- ggplot2::ggplot(df, ggplot2::aes(U1, U2, color = Souche)) +
+      ggplot2::geom_point(size = 2, alpha = 1)
+  }
+
+  # Calcul automatique des marges (coord_cartesian)
+  range_u1 <- range(df$U1)
+  range_u2 <- range(df$U2)
+
+  xlims <- c(range_u1[1] - 0.1 * diff(range_u1), range_u1[2] + 0.1 * diff(range_u1))
+  ylims <- c(range_u2[1] - 0.1 * diff(range_u2), range_u2[2] + 0.1 * diff(range_u2))
+
+  # Habillage du graphique
+  p <- p +
     ggplot2::theme_light() +
-    ggplot2::labs(title = "Projection UMAP des profils spectraux")
+    ggplot2::scale_color_brewer(palette = "Set1") +
+    ggplot2::labs(title = "Projection UMAP des profils spectraux",
+                  x = "U1", y = "U2") +
+    ggplot2::coord_cartesian(xlim = xlims, ylim = ylims)
+
+  return(p)
 }
+
