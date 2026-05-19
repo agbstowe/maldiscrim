@@ -7,10 +7,7 @@
 \alias{plot_pls_var}
 \alias{plot_pls_weights}
 \alias{plot_spectra_umap}
-\title{Visualisations des resultats de l'analyse discriminante
-PROJECTION 3D dans l'espace des composantes de la PLS
-PROJECTION 2D dans le plan des composantes de la PLS
-Visualisation graphique de la VARIANCE EXPLIQUEE des composantes PLS (Scree Plot)}
+\title{Visualisation functions for maldiscrim outputs}
 \usage{
 plot_spectra_3d(object, comp = c(1, 2, 3), show_proba = FALSE, ...)
 
@@ -29,17 +26,75 @@ plot_spectra_umap(
 )
 }
 \arguments{
-\item{object}{a fitted object of class inheriting from "fPLS_DA".}
+\item{object}{A fitted model object of class inheriting from \code{"fPLS_DA"}.}
 
-\item{comp}{Axes de projection des scores (par défaut 1 et 2)}
+\item{comp}{A numeric vector specifying the projection axes or component to display.}
 
-\item{show_proba}{Booleen. Si TRUE, colorie par groupe et ajuste la transparence (alpha) selon la probabilite de prediction.}
+\item{show_proba}{Logical. If \code{TRUE}, sample points are colored by group, and their transparency is dynamically scaled based on their
+maximum LDA posterior probability tier: 1.0 (\eqn{\ge 0.8}), 0.6 (\eqn{\ge 0.5}), or 0.2 (\eqn{< 0.5}).}
 
-\item{...}{further arguments passed to or from other methods.}
+\item{...}{Further arguments passed to or from other internal methods.}
+
+\item{n_neighbors}{Integer. Number of nearest neighbors configuration for the UMAP algorithm.}
+
+\item{min_dist}{Numeric. Controls how tightly UMAP packs points together in the layout.}
 }
 \description{
-Visualisations des resultats de l'analyse discriminante
-PROJECTION 3D dans l'espace des composantes de la PLS
-PROJECTION 2D dans le plan des composantes de la PLS
-Visualisation graphique de la VARIANCE EXPLIQUEE des composantes PLS (Scree Plot)
+This group of functions provides a comprehensive suite of tools to visually explore, diagnose, and interpret the results of a fitted \code{fPLS_DA} model.
+It includes classical 2D/3D score projections, UMAP manifold embeddings, variance scree plots, and spectral loading weight profiles.
+}
+\details{
+The score-based plotting functions (\code{plot_spectra_2d}, \code{plot_spectra_3d},
+and \code{plot_spectra_umap}) assist in assessing cluster separation in different latent spaces.
+When \code{show_proba = TRUE}, they act as a diagnostic layer to visually isolate samples near classification boundaries.
+
+Diagnostic plots (\code{plot_pls_var} and \code{plot_pls_weights}) help identify
+the optimal number of components and track down specific mass-to-charge (\eqn{m/z}) channels.
+}
+\section{3D Score Projection}{
+
+Generates an interactive tridimensional scatter plot of the PLS latent scores using \code{plotly}.
+Axis titles automatically integrate the percentage of explained variance for each selected component.
+}
+
+\section{2D Score Projection}{
+
+Generates a static two-dimensional scatter plot using \code{ggplot2}.
+}
+
+\section{Explained Variance Scree Plot}{
+
+Computes and displays a bar chart of the individual variance percentage explained by each functional PLS component.
+}
+
+\section{Spectral Loadings Profile}{
+
+Plots the loading weight profiles across variables (mass channels).
+Useful for identifying specific \eqn{m/z} markers that highly influence class segregation.
+}
+
+\section{UMAP Non-linear Embedding}{
+
+Projects the full matrix of high-dimensional PLS scores into a non-linear 2D layout via Uniform Manifold Approximation and Projection (UMAP).
+}
+
+\examples{
+\dontrun{
+# Assuming 'fit_model' is generated
+# 1. 2D Score Projection
+plot_spectra_2d(fit_model, comp = c(1, 2), show_proba = TRUE)
+
+# 2. Interactive 3D Plot
+plot_spectra_3d(fit_model, comp = c(1, 2, 3))
+
+# 3. Variance Scree Plot
+plot_pls_var(fit_model)
+
+# 4. Loading Profiles
+plot_pls_weights(fit_model, comp = 1)
+
+# 5. Non-linear UMAP Mapping
+plot_spectra_umap(fit_model, n_neighbors = 10, min_dist = 0.05)
+}
+
 }

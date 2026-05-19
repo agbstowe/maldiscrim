@@ -1,19 +1,25 @@
 Package: maldiscrim
-Title: Analyse et Discrimination de Spectres de masses MALDI-TOF
+Title: Analysis and Discrimination of MALDI-TOF Mass Spectra
 Version: 0.0.0.9000
 Authors@R: 
-    person("AGBESSI Stowe", "Last", , "agb.stowe@gmail.com", role = c("aut", "cre"))
-Description: Cet outil permet de realiser le traitement et l'analyse discriminante de spectres de masse MALDI-TOF 
-    en se servant de methode d'analyse de donnees fonctionnelles telles que la methode statistique Functionnel 
-    Partial Least Square - Discriminant Analysis (FPLS-DA) et de deep learning Convolutional Neural Network (CNN). 
-    Il inclut des tranformations en fonctions de base B-Splines et en Ondelettes. 
+    person("Stowe", "AGBESSI", , "agb.stowe@gmail.com", role = c("aut", "cre"))
+Description: Tools for the processing and discriminant analysis of MALDI-TOF mass spectra. 
+    The package implements functional data analysis techniques, specifically Functional Partial Least Squares - 
+    Discriminant Analysis (FPLS-DA), and deep learning methods via Convolutional Neural Networks (CNN). It includes 
+    spectral transformations using B-Spline basis functions and wavelets for dimension reduction and smoothing. 
+    Functions are provided for spectra data import, preprocessing, model training, prediction, and graphical visualizations. 
 License: MIT + file LICENSE
 Encoding: UTF-8
+LazyData: true
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
+Depends: R (>= 4.0.0)
+SystemRequirements: Python (>= 3.8), TensorFlow (>= 2.0)
 Imports: 
+    dplyr,
     fastDummies,
     fda,
+    fdapace,
     ggplot2,
     jsonlite,
     lubridate,
@@ -25,7 +31,14 @@ Imports:
     plotly,
     pls,
     reticulate,
+    tidyr,
     umap,
     wavelets
 URL: https://github.com/agbstowe/maldiscrim
 BugReports: https://github.com/agbstowe/maldiscrim/issues
+Suggests: 
+    knitr,
+    rmarkdown,
+    testthat (>= 3.0.0)
+VignetteBuilder: knitr
+Config/testthat/edition: 3

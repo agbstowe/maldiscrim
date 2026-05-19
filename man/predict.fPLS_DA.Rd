@@ -2,20 +2,61 @@
 % Please edit documentation in R/model_fplsda.R
 \name{predict.fPLS_DA}
 \alias{predict.fPLS_DA}
-\title{Predict Method for fPLS_DA fits}
+\title{Predict Method for fPLS_DA Model Fits}
 \usage{
-\method{predict}{fPLS_DA}(object, newdata, threshold = NULL, ...)
+\method{predict}{fPLS_DA}(object, newdata = NULL, threshold = NULL, ...)
 }
 \arguments{
-\item{object}{a fitted object of class inheriting from "fPLS_DA".}
+\item{object}{A fitted model object of class \code{"fPLS_DA"}.}
 
-\item{newdata}{an optionally data frame in which to look for variables with which to predict.
-If omitted, the fitted values are used.   ###################" Revoir le newdata et le rendre optionnel}
+\item{newdata}{An optional matrix or data frame of new MALDI-TOF spectral intensities to predict.
+If omitted (\code{NULL}), the function automatically retrieves the coefficients from the training data and returns the fitted predictions.}
 
-\item{threshold}{Seuil de validation du type de la souche}
+\item{threshold}{Numeric. A classification probability threshold (between 0 and 1).
+If the maximum posterior probability for a sample is below this threshold, its predicted class is labeled as \code{"Doubty"}.
+Default is \code{NULL} (no threshold applied).}
 
-\item{...}{further arguments passed to or from other methods.}
+\item{...}{Further arguments passed to or from other methods.}
+}
+\value{
+A named list containing three components:
+\item{class}{A character vector of predicted class/strain assignments for each observation.}
+\item{Probability}{A numeric vector indicating the maximum posterior probability (confidence score) associated with each prediction.}
+\item{lda_res}{The raw list output from the underlying \code{\link[MASS]{predict.lda}} step.}
 }
 \description{
-Predict Method for fPLS_DA fits
+Obtains predictions (classified strains and posterior probabilities) from a fitted \code{fPLS_DA} model object.
+}
+\details{
+When new spectral data is supplied via \code{newdata}, the function projects it into the exact same functional domain
+space established during training (using either the original B-spline basis parameters or the specific wavelet filter and resolution level).
+
+The extracted functional coefficients are then projected onto the optimal Partial Least Squares (PLS) components.
+Finally, after removing near-zero variance components, the Linear Discriminant Analysis boundary profiles
+evaluate the scores to output the most probable strain class along with its associated posterior probability.
+}
+\examples{
+# Load the pre-trained example model from the package cache
+model_res <- fit.fPLS_DA(precomputed = TRUE)
+
+# Predict on the training data by omitting 'newdata' (Fitted values)
+predict_res <- predict(model_res)
+table(predict_res$class)
+
+\donttest{
+# Example with 'newdata' using the built-in dataset
+data("spectra100", package = "maldiscrim")
+
+# Let's simulate new data by taking a subset of spectra100
+new_spectra <- spectra100[1:5, ]
+
+# Predict
+predict_res <- predict(model_res, newdata = new_spectra )
+print(predict_res$class)
+print(predict_res$Probabilities)
+}
+
+}
+\seealso{
+\code{\link{fit.fPLS_DA}}, \code{\link[MASS]{predict.lda}}, \code{\link[pls]{predict.mvr}}
 }

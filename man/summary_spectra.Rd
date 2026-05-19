@@ -9,6 +9,17 @@ summary_spectra(object)
 \arguments{
 \item{object}{...}
 }
+\value{
+function outputs
+}
 \description{
-Resume statistique du modele
+Description
+}
+\details{
+Additional details...
+}
+\examples{
+# example code
+
+
 }
