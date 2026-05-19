@@ -1,0 +1,138 @@
+---
+title: "maldiscrim-demo"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{maldiscrim-demo}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+## Introduction and Scientific Context
+
+In microbiology, discriminating bacterial samples at a fine taxonomic resolution—specifically at the **strain level**—remains a major challenge. While highly accurate molecular tools exist, their exorbitant costs and complex workflows often hinder routine laboratory use and large-scale industrial screens. 
+
+Matrix-Assisted Laser Desorption/Ionization Time-of-Flight (**MALDI-TOF**) mass spectrometry has emerged as an excellent alternative due to its cost-effectiveness, speed, and widespread availability in routine laboratories. However, standard software and traditional workflows typically restrict identification to the **genus or species level**. This limitation stems from a heavy reliance on "peak-picking" algorithms, which isolate only the most intense spectral peaks. While peak-picking captures the primary signal, it discards a massive amount of low-intensity background data and baseline structures. This omitted information turns out to be crucial for capturing the subtle biological signatures that differentiate one strain from another within the same species.
+
+The `maldiscrim` package bridges this gap by shifting the paradigm from peak analysis to **Functional Data Analysis (FDA)**. By treating the entire MALDI-TOF mass spectrum as a continuous functional curve in its **completeness**, this package extracts the hidden information located outside the major peaks. 
+
+Combined with robust functional decomposition (B-splines or Wavelets) and discriminant modeling (fPLS-DA), `maldiscrim` provides microbiologists with an accessible, affordable, and highly accurate statistical framework to achieve strain-level distinction without the financial burden of expensive alternative technologies.
+
+This vignette demonstrates the complete analysis workflow, from raw spectrum preprocessing to the visualization of discriminant latent spaces.
+
+---
+
+### 1. Data Loading and Preprocessing (`process_maldi`)
+
+The `process_maldi` function imports raw spectra files from a target directory. It encapsulates a rigorous pipeline powered by `MALDIquant`: variance stabilization, Savitzky-Golay smoothing, baseline removal (`SNIP`), and Total Ion Current (`TIC`) intensity normalization.
+
+Technical replicates are aligned and averaged into a single **biological replicate** (Mean Spectrum Profile, or MSP) by combining the sample's full name and its acquisition month. The output is a clean matrix of continuous profiles.
+
+```{r}
+library(maldiscrim)
+```
+
+```{r, eval = FALSE}
+# Example of importing and preprocessing raw spectra files
+# Each row represents a biological replicate (MSP) interpolated across 20,664 m/z points
+data_path    <- "path/to/your/strains_directory"
+raw_processed <- process_maldi(data_file = data_path, method_baseline = "SNIP", halfWindowSize = 10)
+```
+
+For the remainder of this vignette, we will use the package's built-in reference dataset.
+
+```{r }
+data("spectra100")
+
+# 100 biological replicates x 20,664 m/z channels
+dim(spectra100)
+```
+
+---
+
+### 2. Training the Classification Model (fit.fPLS_DA)
+The fit.fPLS_DA function fits a supervised classifier tailored for functional data. It projects the continuous signal onto a functional basis (B-splines or Wavelets) and extracts expansion coefficients to train a multivariate Partial Least Squares (PLS) regression.
+
+The optimal number of PLS components is automatically selected via cross-validation using the One-Sigma rule. Finally, a Linear Discriminant Analysis model (MASS::lda) is fitted on the PLS scores, which are filtered beforehand to remove columns with zero variance.
+
+```{r }
+# Fitting the fPLS-DA model using a B-splines functional decomposition
+fit_model <- fit.fPLS_DA(data = spectra100, method = "bsplines", nbasis = 1050)
+
+# Inspect the optimal number of PLS components selected by cross-validation
+fit_model$ncompOpt
+```
+
+
+---
+
+### 3. Evaluation and Prediction (predict.fPLS_DA)
+The prediction method maps new spectral matrices onto the functional basis and the PLS space defined during training, computing posterior group probabilities via the LDA component. The threshold argument allows users to flag ambiguous spectra under a "Doubty" classification tag.
+
+```{r}
+# Prediction on the training data
+predictions <- predict(object = fit_model, newdata = spectra100 )
+# predictions <- predict.fPLS_DA(object = fit_model, newdata = spectra100 )
+
+# Check the first few predicted classes
+head(predictions$class)
+```
+
+---
+
+### 4. Simulating Functional Spectral Profiles (SimulateSpectrum)
+To evaluate classifier stability under realistic conditions, SimulateSpectrum performs a Functional Principal Component Analysis (FPCA) selected via the AIC criterion. A K-means clustering step partitions the latent space, and a resampling engine generates $n$ new continuous spectra using the Karhunen-Loeve expansion combined with an adaptive noise structure. Physical non-negativity constraints are enforced via a pmax(y, 0) rectification step.Setting plot = TRUE automatically outputs a $2 \times 2$ diagnostic dashboard:
+
+```{r}
+# Simulate 40 new spectra across 3 latent clusters with diagnostic plots enabled
+simulated_spectra <- SimulateSpectrum(data = spectra100, n = 60, k = 3, factor_noise = 1, plot = TRUE)
+```
+
+---
+
+### 5. Visualizing Discriminant Latent Spaces
+The package includes advanced graphic functions to inspect microbial strain segregation within the projection subspaces.2D Score Projections with Class Probabilities (plot_spectra_2d)This function displays the score map along the first two PLS dimensions. Enabling show_proba = TRUE applies strict discrete opacity tiers ($1.0, 0.6,$ or $0.2$) based on the maximum posterior LDA probability, helping users visually isolate taxonomic uncertainty zones.
+
+```{r , fig.show="hold", out.width="50%"}
+# par(mfrow = c(1,2))
+
+plot_spectra_2d(fit_model, comp = c(1, 2), show_proba = TRUE)
+plot_spectra_2d(fit_model, comp = c(1, 2), show_proba = FALSE)
+```
+
+
+**Interactive 3D Scores Cloud (plot_spectra_3d)**
+To analyze complex cluster sub-structures, plot_spectra_3d builds an interactive 3D scatter plot using plotly. Axes automatically integrate individual explained variance percentages, and plotting ranges expand by 10% to prevent marker edge truncation.
+
+```{r}
+# Generates an interactive 3D plot (supporting zoom and rotation)
+plot_spectra_3d(fit_model, comp = c(1, 2, 3), show_proba = FALSE)
+```
+
+**UMAP Non-linear Embedding Projection (plot_spectra_umap)**
+When high biological proximity between distinct strains creates non-linear trajectories within the PLS score space, plot_spectra_umap projects the complete PLS score matrix onto a 2D UMAP layout.
+
+```{r , fig.show="hold", out.width="50%"}
+# par(mfrow = c(1,2))
+
+plot_spectra_umap(fit_model, n_neighbors = 10, min_dist = 0.01, show_proba = TRUE)
+plot_spectra_umap(fit_model, n_neighbors = 10, min_dist = 0.01, show_proba = FALSE)
+```
+
+**Model Diagnostics: Variance and Biomarker Trackers (plot_pls_var & plot_pls_weights)**
+To assist in model interpretation, plot_pls_var tracks individual variance decay across components, while plot_pls_weights plots loading profiles across mass channels to expose the specific $m/z$ biomarkers driving the strain discrimination.
+
+```{r , fig.show="hold", out.width="50%"}
+# Variance scree plot
+plot_pls_var(fit_model)
+
+# Identify influential m/z regions on Component 1
+plot_pls_weights(fit_model, comp = 1)
+```
+
