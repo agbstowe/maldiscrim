@@ -1,26 +1,96 @@
-#' Fit Partiel Least Square Regression and Discriminant Analysis on functionnal data (fPLS_DA)
+#' Fit Functionnal Partiel Least Square and Discriminant Analysis (fPLS_DA) Model
 #'
-#' @param data Matrice de donnees MSP transformees pour l'entrainement du modele.
-#' @param method Méthode de décomposition en bases fonctionnelles : "bsplines" ou "wavelets".
-#' @param nbasis an integer variable specifying the number of basis functions (1050 by default pour bsplines).
-#' @param ncomp Nombre de composantes PLS a retenir (by default 20).
-#' @param argvals description
-#' @param rangeval description
-#' @param n_folds Nombre de plis pour la validation croisee (by default 5).
-#' @inheritParams wavelets::dwt
+#' @description
+#' `fit.fPLS_DA` performs a supervised classification of MALDI-TOF mass spectra by combining functional data analysis (FDA)
+#' dimensionality reduction techniques with Partial Least Squares Regression (PLSR) and Linear Discriminant Analysis (LDA).
+#'
+#'
+#' @param data A numeric matrix of processed Mean Mass Spectra (MSP) where rows
+#' represent biological replicates (with strain names as rownames) and columns represent spectral intensities.
+#' @param method Character. The mathematical basis used for spectral decomposition: either `"bsplines"`
+#' (B-spline basis functions) or `"wavelets"` (Discrete Wavelet Transform).
+#' @param nbasis Integer. Number of basis functions used when `method = "bsplines"`. Default is `1050`.
+#' @param ncomp Integer. Number of PLS components to retain. If `NULL` (default), the optimal number of
+#' components is automatically determined using the one-sigma heuristic based on Cross-Validation RMSEP.
+#' @param argvals A numeric vector specifying the evaluation grid (m/z indices) for the B-spline projection.
+#' @param rangeval A numeric vector of length 2 defining the domain range for the B-spline basis.
+#' @param n_folds Integer. Number of folds for the internal cross-validation performed during PLS fitting. Default is `5`.
+#' @param filter Character. The wavelet filter type passed to \code{\link[wavelets]{dwt}} when `method = "wavelets"`. Default is `"la14"`.
+#' @param boundary Character. The boundary handling method passed to \code{\link[wavelets]{dwt}}. Default is `"periodic"`.
+#' @param n.levels Integer. Total number of decomposition levels for the wavelet transform.
+#' If `NULL`, it is automatically set to the maximum possible level.
+#' @param level Integer. The specific wavelet decomposition resolution level from which
+#' coefficients are extracted for downstream classification. Default is `3`.
+#' @param precomputed Logical. If `TRUE`, the function bypasses all heavy computations and returns a built-in
+#' pre-trained model object. Primarily used to speed up examples and unit testing. Default is `FALSE`.
+#'
+#'
+#' @details
+#' The pipeline executes three sequential phases to achieve classification of functional spectral data:
+#' \enumerate{
+#'   \item **Functional Decomposition:** Depending on `method`, the high-dimensional spectral matrix is projected into either:
+#'     \itemize{
+#'       \item *B-Splines:* Continuous functional representations are built using a B-spline basis matrix via `fda::Data2fd`.
+#'       \item *Wavelets:* Multi-resolution analysis is applied via the Discrete Wavelet Transform (`wavelets::dwt`). A built-in guardrail automatically adjusts `level` if the remaining coefficients are insufficient for modeling.
+#'     }
+#'   \item **PLS Dimension Reduction:** A Kernel Partial Least Squares Regression (`pls::plsr`) is fitted using dummy-coded groups as responses.
+#'   \item **Classification:** Low-variance components are filtered out, and a Linear Discriminant Analysis (`MASS::lda`) is fitted on the remaining PLS scores to generate the final decision boundaries.
+#' }
+#'
+#' @return An object of class `"fPLS_DA"`. This object is a named list containing:
+#' \item{pls_model}{The fitted PLS model object returned by `pls::plsr`.}
+#' \item{lda_model}{The fitted LDA model object returned by `MASS::lda`.}
+#' \item{method}{A character string indicating the functional decomposition method used.}
+#' \item{basis}{The B-spline basis object (if `method = "bsplines"`), otherwise `NULL`.}
+#' \item{wavelets}{A list containing raw DWT outputs for each spectrum (if `method = "wavelets"`), otherwise `NULL`.}
+#' \item{ncompOpt}{The optimized or user-defined number of PLS components retained.}
+#' \item{const_idx}{A logical vector indicating which PLS components were excluded due to near-zero variance.}
+#' \item{levels}{The structural names/categories of the groups (strains).}
+#' \item{labels}{The original factor array of group memberships assigned to each row.}
+#' \item{argvals}{The grid evaluations used for B-splines projection.}
+#' \item{filter}{The name of the wavelet filter used.}
+#' \item{n_levels}{The maximum wavelet decomposition level reached.}
+#' \item{level}{The specific wavelet resolution level extracted.}
+#' \item{nbasis}{The total number of B-spline basis functions used.}
+#' \item{boundary}{The wavelet boundary method applied.}
+#'
+#' @seealso \code{\link[pls]{plsr}}, \code{\link[MASS]{lda}}, \code{\link[fda]{Data2fd}}, \code{\link[wavelets]{dwt}}
+#'
+#' @examples
+#' # Model loading using the precomputed cache
+#' model_res <- fit.fPLS_DA(precomputed = TRUE)
+#' # print(model_res)
+#'
+#' \donttest{
+#' # Real execution example using the package built-in data 'spectra100'
+#' data("spectra100", package = "maldiscrim")
+#'
+#' # Fit using B-Splines functional basis
+#' bspline_model <- fit.fPLS_DA(
+#'   data = spectra100, method = "bsplines", nbasis = 1050, n_folds = 5
+#'   )
+#'
+#' # Fit using Wavelets multi-resolution decomposition
+#' # wavelet_model <- fit.fPLS_DA(
+#' # data = spectra100, method = "wavelets", level = 3, n_folds = 5)
+#' }
+#'
 #' @importFrom stats sd aggregate
 #' @export
-fit.fPLS_DA <- function(data,
-                          method = c("bsplines", "wavelets"),
-                          nbasis = 1050,
-                          ncomp = NULL,
-                          argvals = 2001:22664,
-                          rangeval = c(1999,22664),
-                          n_folds = 5,
-                          filter = "la14",
-                          boundary = "periodic",
-                          n.levels = NULL,
-                          level = 3) {
+fit.fPLS_DA <- function(data, method = c("bsplines", "wavelets"), nbasis = 1050, ncomp = NULL, argvals = 2001:22664,
+                          rangeval = c(1999,22664), n_folds = 5,
+                          filter = "la14", boundary = "periodic", n.levels = NULL, level = 3, precomputed = FALSE) {
+
+  # Interception pour charger le resultat pre-calcule instantanement (Gain de temps exemples/tests)
+  if (precomputed) {
+    message("Loading precomputed fPLS_DA model from cache")
+    # S'assure que l'objet cache existe dans le package
+    if (exists("fpls_model", envir = asNamespace("maldiscrim"))) {
+      return(get("fpls_model", envir = asNamespace("maldiscrim")))
+    } else {
+      stop("Cached model 'fpls_model' not found in the package data.")
+    }
+  }
 
   method <- match.arg(method)
   groups <- as.factor(rownames(data))
@@ -130,7 +200,7 @@ fit.fPLS_DA <- function(data,
     method = method,
     basis = if(method == "bsplines") basis_obj else NULL,
     wavelets = if(method == "wavelets") wt_output else NULL,
-    ncomp = ncomp,
+    ncompOpt = ncomp,
     const_idx = const_idx,
     levels = levels(groups),
     labels = groups,
@@ -146,40 +216,94 @@ fit.fPLS_DA <- function(data,
   return(model_obj)
 }
 
-#' Predict Method for fPLS_DA fits
-#' @param object a fitted object of class inheriting from "fPLS_DA".
-#' @param newdata an optionally data frame in which to look for variables with which to predict.
-#' If omitted, the fitted values are used.   ###################" Revoir le newdata et le rendre optionnel
-#' @param threshold Seuil de validation du type de la souche
-#' @param ... further arguments passed to or from other methods.
+#' Predict Method for fPLS_DA Model Fits
+#'
+#' @description
+#' Obtains predictions (classified strains and posterior probabilities) from a fitted \code{fPLS_DA} model object.
+#'
+#' @method predict fPLS_DA
+#'
+#' @param object A fitted model object of class \code{"fPLS_DA"}.
+#' @param newdata An optional matrix or data frame of new MALDI-TOF spectral intensities to predict.
+#' If omitted (\code{NULL}), the function automatically retrieves the coefficients from the training data and returns the fitted predictions.
+#' @param threshold Numeric. A classification probability threshold (between 0 and 1).
+#' If the maximum posterior probability for a sample is below this threshold, its predicted class is labeled as \code{"Doubty"}.
+#' Default is \code{NULL} (no threshold applied).
+#' @param ... Further arguments passed to or from other methods.
 #' @importFrom stats predict
+#'
+#' @details
+#' When new spectral data is supplied via \code{newdata}, the function projects it into the exact same functional domain
+#' space established during training (using either the original B-spline basis parameters or the specific wavelet filter and resolution level).
+#'
+#' The extracted functional coefficients are then projected onto the optimal Partial Least Squares (PLS) components.
+#' Finally, after removing near-zero variance components, the Linear Discriminant Analysis boundary profiles
+#' evaluate the scores to output the most probable strain class along with its associated posterior probability.
+#'
+#' @return A named list containing three components:
+#' \item{class}{A character vector of predicted class/strain assignments for each observation.}
+#' \item{Probability}{A numeric vector indicating the maximum posterior probability (confidence score) associated with each prediction.}
+#' \item{lda_res}{The raw list output from the underlying \code{\link[MASS]{predict.lda}} step.}
+#'
+#' @seealso \code{\link{fit.fPLS_DA}}, \code{\link[MASS]{predict.lda}}, \code{\link[pls]{predict.mvr}}
+#'
+#'
+#' @examples
+#' # Load the pre-trained example model from the package cache
+#' model_res <- fit.fPLS_DA(precomputed = TRUE)
+#'
+#' # Predict on the training data by omitting 'newdata' (Fitted values)
+#' predict_res <- predict(model_res)
+#' table(predict_res$class)
+#'
+#' \donttest{
+#' # Example with 'newdata' using the built-in dataset
+#' data("spectra100", package = "maldiscrim")
+#'
+#' # Let's simulate new data by taking a subset of spectra100
+#' new_spectra <- spectra100[1:5, ]
+#'
+#' # Predict
+#' predict_res <- predict(model_res, newdata = new_spectra )
+#' print(predict_res$class)
+#' print(predict_res$Probabilities)
+#' }
+#'
+#' @importFrom stats predict
+#' @importFrom MASS lda
+#' @import pls
 #' @export
-predict.fPLS_DA <- function(object, newdata, threshold = NULL, ...) {
+predict.fPLS_DA <- function(object, newdata = NULL, threshold = NULL, ...) {
 
-  # VALIDATION DÉFENSIF
-  if (!is.matrix(newdata) && !is.data.frame(newdata)) {
-    stop("newdata doit etre une matrice ou un data.frame.")
-  }
-  # # Vérification cruciale : la taille du spectre. On compare avec la longueur de argvals
-  # if (ncol(newdata) != length(object$argvals)) {
-  #   stop(paste("Erreur : newdata possede", ncol(newdata),
-  #              "colonnes, mais le modèle a ete entraine avec", length(object$argvals), "colonnes."))
-  # }
+  if (is.null(newdata)) {
+    new_coefs <- object$pls_model$model[[2]]
 
-  # 1. Decomposition des nouvelles donnees avec la base du modele
-  if (object$method == "bsplines") {
-    fd_new <- fda::Data2fd(argvals = object$argvals, y = t(newdata), basisobj = object$basis)
-    new_coefs <- t(fd_new$coefs)
-  } else if (object$method == "wavelets") {
-    # On applique le même filtre et le même niveau qu'à l'entraînement !
-    new_coefs <- t(apply(newdata, 1, function(x) {
-      wt_x <- wavelets::dwt(x, filter = object$filter, n.levels = object$n_levels, boundary = object$boundary)
-      return(wt_x@W[[object$level]])
-    }))
+  } else {
+    # VALIDATION DEFENSIF
+    if (!is.matrix(newdata) && !is.data.frame(newdata)) {
+      stop("newdata doit etre une matrice ou un data.frame.")
+    }
+    # # Vérification cruciale : la taille du spectre. On compare avec la longueur de argvals
+    # if (ncol(newdata) != length(object$argvals)) {
+    #   stop(paste("Erreur : newdata possede", ncol(newdata),
+    #              "colonnes, mais le modèle a ete entraine avec", length(object$argvals), "colonnes."))
+    # }
+
+    # 1. Decomposition des nouvelles donnees avec la base du modele
+    if (object$method == "bsplines") {
+      fd_new <- fda::Data2fd(argvals = object$argvals, y = t(newdata), basisobj = object$basis)
+      new_coefs <- t(fd_new$coefs)
+    } else if (object$method == "wavelets") {
+      # On applique le même filtre et le même niveau qu'à l'entraînement !
+      new_coefs <- t(apply(newdata, 1, function(x) {
+        wt_x <- wavelets::dwt(x, filter = object$filter, n.levels = object$n_levels, boundary = object$boundary)
+        return(wt_x@W[[object$level]])
+      }))
+    }
   }
 
   # 2. Projection PLS et LDA
-  pls_scores <- predict(object$pls_model, comps = 1:object$ncomp, newdata = new_coefs, type = "scores")
+  pls_scores <- predict(object$pls_model, comps = 1:object$ncompOpt, newdata = as.matrix(new_coefs), type = "scores")
 
   # 3. Filtrage des composantes constantes
   clean_scores <- data.frame(pls_scores[, !object$const_idx])
@@ -194,7 +318,7 @@ predict.fPLS_DA <- function(object, newdata, threshold = NULL, ...) {
   max_probs <- apply(lda_res$posterior, 1, max)
 
   if (!is.null(threshold)) {
-    final_class[max_probs < threshold] <- "Indetermine"
+    final_class[max_probs < threshold] <- "Doubty"
   }
 
   return(list(
@@ -208,7 +332,21 @@ predict.fPLS_DA <- function(object, newdata, threshold = NULL, ...) {
 
 
 #' Resume statistique du modele
+#'
+#' @description
+#' Description
+#'
 #' @param object ...
+#'
+#' @details
+#' Additional details...
+#'
+#' @return function outputs
+#'
+#' @examples
+#' # example code
+#'
+#'
 #' @export
 summary_spectra <- function(object) {
   cat("Resume du Modele maldiscrim \n")

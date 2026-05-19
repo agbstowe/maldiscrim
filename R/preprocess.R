@@ -1,9 +1,61 @@
-#' Importation et Pretraitement des replicas biologiques de souches
+#' Import and Preprocessing of Biological Replicates from MALDI-TOF Strains
 #'
-#' @param data_file Chemin vers le dossier contenant les sous-dossiers de souches.
-#' @param method_baseline Methode de retrait de la ligne de base ("SNIP" par defaut).
-#' @param halfWindowSize Fenetre de valeurs pour le lissage SavitzkyGolay.
-#' @return Une matrice d'intensites (MSP) ou chaque ligne est un replica biologique normalise.
+#' @description
+#' `process_maldi` automates the complete preprocessing pipeline for raw MALDI-TOF mass spectra organized in strain-specific subdirectories.
+#' It handles variance stabilization, smoothing, baseline removal, intensity calibration, technical
+#' replicate alignment, and computes Mean Mass Spectra (MSP) for each biological replicate.
+#'
+#' @param data_file Character. Path to the parent directory containing strain subfolders with raw spectra files.
+#' @param method_baseline Character. The baseline subtraction method to be passed to `MALDIquant::removeBaseline`. Default is `"SNIP"`.
+#' @param halfWindowSize Integer. The half-window size used for Savitzky-Golay intensity smoothing. Default is `10`.
+#'
+#' @details
+#' The function scans the `data_file` directory for subfolders, where each subfolder
+#' represents a unique biological strain. For each strain, the following sequential pipeline is executed via the `MALDIquant` ecosystem:
+#' \enumerate{
+#'   \item **Importation:** Reads raw data files using \code{\link[MALDIquantForeign]{import}}.
+#'   \item **Variance Stabilization:** Applies a square root (\code{sqrt}) transformation.
+#'   \item **Smoothing:** Smooths intensities using the Savitzky-Golay algorithm.
+#'   \item **Baseline Correction:** Subtracts the background baseline using the SNIP algorithm (with 100 iterations).
+#'   \item **Normalization:** Calibrates intensities using Total Ion Current (\code{TIC}).
+#'   \item **Grouping & Alignment:** Groups spectra into biological replicates by combining
+#'   the metadata sample full name and the acquisition month. Technical replicates within each group
+#'   are aligned using a Lowess warping method.
+#'   \item **Average Spectrum:** Computes a Mean Mass Spectrum (MSP) for each biological replicate.
+#' }
+#' To ensure a consistent matrix structure for downstream functional data analysis (FDA) and deep learning (CNN),
+#' all intensity vectors are standardized to a fixed length of 20,664 data points.
+#' Missing values (\code{NA}) introduced during padding are replaced with 0.
+#'
+#' @return A numeric matrix where each row represents a processed biological replicate
+#' and columns represent the fixed-length spectral intensities (20,664 variables at all).
+#'
+#' @seealso \code{\link[MALDIquantForeign]{import}}, \code{\link[MALDIquant]{alignSpectra}},
+#' \code{\link[MALDIquant]{averageMassSpectra}}
+#'
+#' @examples
+#' \dontrun{
+#' # Assuming you have a directory structure like:
+#' # "data/Strain_A/...", "data/Strain_B/..." , ...
+#'
+#' path <- "path/to/data"
+#'
+#' # Process all raw spectra into a standardized intensity matrix
+#' spectra_matrix <- process_maldi(
+#'   data_file = path,
+#'   method_baseline = "SNIP",
+#'   halfWindowSize = 10
+#' )
+#'
+#' # Preview result
+#' dim(spectra_matrix)
+#' head(rownames(spectra_matrix))
+#' }
+#'
+#' # Note: The pre-processed dataset included in this package (e.g., 'spectra100')
+#' # was built using this exact pipeline.
+#'
+#'
 #' @export
 process_maldi <- function(data_file, method_baseline = "SNIP", halfWindowSize = 10) { # length intensity a ajouter
 
