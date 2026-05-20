@@ -100,6 +100,7 @@ fit.fPLS_DA <- function(data, method = c("bsplines", "wavelets"), nbasis = 1050,
   #   argvals = argvals
   # }
 
+  res_fdaDecomposition <- fdaDecomposition(data,method,nbasis,rangeval,argvals)
 
   # 1. Décomposition selon la méthode choisie
   if (method == "bsplines") {
@@ -183,14 +184,16 @@ fit.fPLS_DA <- function(data, method = c("bsplines", "wavelets"), nbasis = 1050,
     message("Nombre de composantes optimise automatiquement a ", ncomp, " pour la PLS")
   }
 
-  # Calcul du filtrage de variance sur les scores
+  # extraction
   scores <- pls_mod$scores[, 1:ncomp]
+  
+  # Calcul du filtrage de variance sur les scores
   group_means <- aggregate(scores, list(groups), mean)[,-1]
   f1 <- apply(scores - as.matrix(group_means[groups, ]), 2, sd)
   const_idx <- f1 < 0.0001
+  scores_clean <- scores[, !const_idx]
 
   # 3. Modele LDA
-  scores_clean <- scores[, !const_idx]
   lda_mod <- MASS::lda(x = scores_clean, grouping = groups)
 
   # 4. Construction de l'objet S3

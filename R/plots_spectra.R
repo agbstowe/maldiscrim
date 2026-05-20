@@ -110,7 +110,7 @@ plot_spectra_2d <- function(object, comp = c(1, 2), show_proba = FALSE, ...) {
 
   # Calcul des marges (expand)
   xlim <- c(range_x[1] - 0.1 * diff(range_x), range_x[2] + 0.1 * diff(range_x))
-  ylim <- c(range_y[1] - 0.1 * diff(range_y), range_y[2] + 0.1 * diff(range_y))
+  ylim <- c(range_y[1] - 0.1 * diff(range_y ), range_y[2] + 0.1 * diff(range_y))
 
   # Initialisation du plot
   p <- ggplot2::ggplot(df, ggplot2::aes(x = x, y = y, color = Souche)) +
