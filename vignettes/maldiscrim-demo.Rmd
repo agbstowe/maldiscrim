@@ -75,13 +75,19 @@ fit_model$ncompOpt
 ### 3. Evaluation and Prediction (predict.fPLS_DA)
 The prediction method maps new spectral matrices onto the functional basis and the PLS space defined during training, computing posterior group probabilities via the LDA component. The threshold argument allows users to flag ambiguous spectra under a "Doubty" classification tag.
 
-```{r}
+```{r , message=FALSE, warning=FALSE, fig.width=12, fig.height=8, out.width="100%", fig.align="center"}
 # Prediction on the training data
 predictions <- predict(object = fit_model, newdata = spectra100 )
 # predictions <- predict.fPLS_DA(object = fit_model, newdata = spectra100 )
 
 # Check the first few predicted classes
 head(predictions$class)
+
+# Checking accuracy
+accuracy <- mean(predictions$class == rownames(spectra100))
+print(paste("Accuracy : ", round(accuracy, 2)))
+
+table(predictions$class , rownames(spectra100))
 ```
 
 ---
@@ -89,7 +95,7 @@ head(predictions$class)
 ### 4. Simulating Functional Spectral Profiles (SimulateSpectrum)
 To evaluate classifier stability under realistic conditions, SimulateSpectrum performs a Functional Principal Component Analysis (FPCA) selected via the AIC criterion. A K-means clustering step partitions the latent space, and a resampling engine generates $n$ new continuous spectra using the Karhunen-Loeve expansion combined with an adaptive noise structure. Physical non-negativity constraints are enforced via a pmax(y, 0) rectification step.Setting plot = TRUE automatically outputs a $2 \times 2$ diagnostic dashboard:
 
-```{r}
+```{r , message=FALSE, warning=FALSE, fig.width=12, fig.height=8, out.width="100%", fig.align="center"}
 # Simulate 40 new spectra across 3 latent clusters with diagnostic plots enabled
 simulated_spectra <- SimulateSpectrum(data = spectra100, n = 60, k = 3, factor_noise = 1, plot = TRUE)
 ```
@@ -99,7 +105,7 @@ simulated_spectra <- SimulateSpectrum(data = spectra100, n = 60, k = 3, factor_n
 ### 5. Visualizing Discriminant Latent Spaces
 The package includes advanced graphic functions to inspect microbial strain segregation within the projection subspaces.2D Score Projections with Class Probabilities (plot_spectra_2d)This function displays the score map along the first two PLS dimensions. Enabling show_proba = TRUE applies strict discrete opacity tiers ($1.0, 0.6,$ or $0.2$) based on the maximum posterior LDA probability, helping users visually isolate taxonomic uncertainty zones.
 
-```{r , fig.show="hold", out.width="50%"}
+```{r , message=FALSE, warning=FALSE, fig.width=12, fig.height=8, out.width="100%", fig.align="center"}
 # par(mfrow = c(1,2))
 
 plot_spectra_2d(fit_model, comp = c(1, 2), show_proba = TRUE)
@@ -110,7 +116,7 @@ plot_spectra_2d(fit_model, comp = c(1, 2), show_proba = FALSE)
 **Interactive 3D Scores Cloud (plot_spectra_3d)**
 To analyze complex cluster sub-structures, plot_spectra_3d builds an interactive 3D scatter plot using plotly. Axes automatically integrate individual explained variance percentages, and plotting ranges expand by 10% to prevent marker edge truncation.
 
-```{r}
+```{r , message=FALSE, warning=FALSE, fig.width=12, fig.height=8, out.width="100%", fig.align="center"}
 # Generates an interactive 3D plot (supporting zoom and rotation)
 plot_spectra_3d(fit_model, comp = c(1, 2, 3), show_proba = FALSE)
 ```
@@ -118,7 +124,7 @@ plot_spectra_3d(fit_model, comp = c(1, 2, 3), show_proba = FALSE)
 **UMAP Non-linear Embedding Projection (plot_spectra_umap)**
 When high biological proximity between distinct strains creates non-linear trajectories within the PLS score space, plot_spectra_umap projects the complete PLS score matrix onto a 2D UMAP layout.
 
-```{r , fig.show="hold", out.width="50%"}
+```{r , message=FALSE, warning=FALSE, fig.width=12, fig.height=8, out.width="100%", fig.align="center"}
 # par(mfrow = c(1,2))
 
 plot_spectra_umap(fit_model, n_neighbors = 10, min_dist = 0.01, show_proba = TRUE)
@@ -128,7 +134,7 @@ plot_spectra_umap(fit_model, n_neighbors = 10, min_dist = 0.01, show_proba = FAL
 **Model Diagnostics: Variance and Biomarker Trackers (plot_pls_var & plot_pls_weights)**
 To assist in model interpretation, plot_pls_var tracks individual variance decay across components, while plot_pls_weights plots loading profiles across mass channels to expose the specific $m/z$ biomarkers driving the strain discrimination.
 
-```{r , fig.show="hold", out.width="50%"}
+```{r , message=FALSE, warning=FALSE, fig.width=12, fig.height=8, out.width="100%", fig.align="center"}
 # Variance scree plot
 plot_pls_var(fit_model)
 
