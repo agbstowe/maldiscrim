@@ -1,14 +1,14 @@
 #' Simulate spectrum using Functionnal Principal Components Analysis (FPCA)
 #'
 #' @description
-#' Simulates a set of $n$ standard spectra based on real or simulated data using Functional Principal Components Analysis (FPCA) and adaptive noise injection.
+#' Simulates a set of n standard spectra based on real or simulated data using Functional Principal Components Analysis (FPCA) and adaptive noise injection.
 #'
 #' @param data A numeric matrix of Mass Spectrometry (MSP) data, where rows represent samples and columns represent m/z variables.
 #' @param n Integer. Total number of spectra to simulate in the output matrix.
 #' @param k Integer. Number of clusters/strains to identify in the latent space. If \code{NULL}, it defaults to 3.
-#' @param factor_noise A numeric multiplier used to scale the adaptive noise injected into the simulated scores.
+#' @param factorNoise A numeric multiplier used to scale the adaptive noise injected into the simulated scores.
 #' Higher values increase the simulated diversity (default is 1).
-#' @param plot Logical. If \code{TRUE}, the function displays a $2 x 2$ diagnostic dashboard
+#' @param plot Logical. If \code{TRUE}, the function displays a 2 x 2 diagnostic dashboard
 #' showing variance explanation, density zones, latent projections, and reconstructed spectra.
 #'
 #' @details
@@ -24,7 +24,7 @@
 #' The reconstructed curves are then bounded to positive intensities via a flattening step and interpolated back onto the original
 #' m/z grid.
 #'
-#' @return A numeric matrix with $n$ rows and $p$ columns containing the simulated spectra. Rows are named after their simulated cluster origin.
+#' @return A numeric matrix with n rows and p columns containing the simulated spectra. Rows are named after their simulated cluster origin.
 #'
 #' @examples
 #' \dontrun{
@@ -37,7 +37,7 @@
 #'
 #' # Run a simulation with diagnostic plots enabled
 #' simulated_data_plots <- SimulateSpectrum(data = spectra100, n = 60, k = 4,
-#'                                             factor_noise = 1.2, plot = TRUE)
+#'                                             factorNoise = 1.2, plot = TRUE)
 #' dim(simulated_data_plots)
 #' }
 #'
@@ -46,70 +46,65 @@
 #' @importFrom grDevices adjustcolor rainbow
 #' @export
 
-SimulateSpectrum <- function(data, n, k = NULL, factor_noise = 1, plot = FALSE) {
+SimulateSpectrum <- function(data, n, k = NULL, factorNoise = 1, plot = FALSE) {
 
-  # 1. Préparation et FPCA
-  m_z = 1:ncol(data)
-  colnames(data) = m_z
-  input_data <- fdapace::MakeFPCAInputs(IDs = rep(1:nrow(data), each = ncol(data)),
+  # FPCA
+  m_z <- seq_len(ncol(data))
+  colnames(data) <- m_z
+
+  input_data <- fdapace::MakeFPCAInputs(IDs = rep(seq_len(nrow(data)), each = ncol(data)),
                                         tVec = rep(as.numeric(m_z), nrow(data)),
                                         yVec = as.vector(t(data)))
 
   res_fpca <- fdapace::FPCA(input_data$Ly, input_data$Lt, optns = list(dataType = 'Dense', methodSelectK = "AIC"))
   scores <- res_fpca$xiEst
 
-  # 2. Clustering
-  if (is.null(k)) { k <- 3 }
+  # Clustering
+  if (is.null(k)) { k <- 3L }
   set.seed(42)
-  km <- kmeans(scores[, 1:2], centers = k, nstart = 25)
+  km          <- kmeans(scores[, 1:2], centers = k, nstart = 25)
   cluster_ids <- km$cluster
 
-  # 3. Calcul des effectifs cibles (Inchangé)
   prop_clusters <- table(cluster_ids) / length(cluster_ids)
   n_per_cluster <- as.vector(round(prop_clusters * n))
-  diff <- n - sum(n_per_cluster)
-  if (diff != 0) n_per_cluster[1] <- n_per_cluster[1] + diff
+  remainder     <- n - sum(n_per_cluster)
+  if (remainder != 0) n_per_cluster[1] <- n_per_cluster[1] + remainder
 
-  # 4. Simulation avec BRUIT ADAPTATIF sur K composantes. On intègre toutes les composantes pour la simulation
+  # Simulation with adaptative noise
   K_total <- ncol(scores)
-  sim_scores_list <- list()
+  sim_scores_list <- vector("list", k)
 
-  for (i in 1:k) {
+  for (i in seq_len(k)) {
     idx_base <- which(cluster_ids == i)
     pts_base <- scores[idx_base, , drop = FALSE]
 
-    # Calcul de l'écart-type pour CHAQUE composante (1 à K)
-    # On simule la variabilité réelle de chaque axe pour ce cluster
-    sds <- apply(pts_base, 2, sd)
-    sds[is.na(sds)] <- 0.0001 # Sécurité
+    sds             <- apply(pts_base, 2, sd)
+    sds[is.na(sds)] <- 0.0001
 
     n_sim <- n_per_cluster[i]
     if (n_sim > 0) {
       sim_idx <- sample(1:nrow(pts_base), n_sim, replace = TRUE)
-      # Génération d'une matrice de bruit (n_sim x K_total)
+      # noise matrix (n_sim x K_total)
       noise <- matrix(rnorm(n_sim * K_total, mean = 0, sd = 1), ncol = K_total)
-      # On multiplie chaque colonne de bruit par le SD correspondant (adaptatif)
-      # sweep est plus propre que cbind ici pour gérer K colonnes
-      noise <- sweep(noise, 2, sds * 0.1 * factor_noise, "*")
+      noise <- sweep(noise, 2, sds * 0.1 * factorNoise, "*")
 
       sim_scores_list[[i]] <- pts_base[sim_idx, ] + noise
     }
   }
   all_sim_scores <- do.call(rbind, sim_scores_list)
 
-  # 5. Reconstruction avec redressement (K-composantes)
-  mu <- res_fpca$mu
-  phi <- res_fpca$phi
+  # Spectral reconstruction with physical bounding
+  mu       <- res_fpca$mu
+  phi      <- res_fpca$phi
   workGrid <- res_fpca$workGrid
 
   reconstruct_spectrum <- function(s, mu, phi, targetGrid, currentGrid) {
-    # phi %*% s calcule automatiquement la somme Mu + Score1*Phi1 + ... + ScoreK*PhiK
+    # phi %*% s computes mu + score_1 * phi_1 + ... + score_K * phi_K
     y_grid <- as.vector(mu + (phi %*% s))
-
-    # Redressement physique
+    # Physical bounding: force non-negative intensities
     y_grid <- pmax(y_grid, 0)
 
-    # Interpolation sur les Daltons d'origine (ex: 20 664 points)
+    # Interpolate back onto the original m/z grid
     y_final <- approx(x = currentGrid, y = y_grid, xout = targetGrid)$y
     return(y_final)
   }
@@ -119,64 +114,52 @@ SimulateSpectrum <- function(data, n, k = NULL, factor_noise = 1, plot = FALSE) 
                               targetGrid = m_z,
                               currentGrid = workGrid))
 
-  # Finalisation des noms
-  # On utilise rep(1:k, n_per_cluster) pour que les labels collent aux blocs de la liste
-  rownames(simulated_matrix) <- paste("souche ", rep(1:k, n_per_cluster))
+  rownames(simulated_matrix) <- paste("strain ", rep(seq_len(k), n_per_cluster))
   colnames(simulated_matrix) <- colnames(data)
 
 
-  # 6. GRAPHIQUES DE DIAGNOSTIC
+  # Diagnostic plots
   if (plot) {
     old_par <- par(no.readonly = TRUE)
     on.exit(par(old_par))
-
-    # Configuration : 2x2 graphiques avec des marges standards
     par(mfrow = c(2, 2), mar = c(4.5, 4.5, 2.5, 1.5))
 
-    # A. Eboulis des variances (Inchangé mais sans légende)
+    # A. Variance scree plot
     eigenvalues <- res_fpca$lambda
-    var_exp <- (eigenvalues / sum(eigenvalues)) * 100
-    var_cum <- cumsum(var_exp)
-    bp <- barplot(var_exp, names.arg = paste0("FPC", 1:K_total),
+    var_exp     <- (eigenvalues / sum(eigenvalues)) * 100
+    var_cum     <- cumsum(var_exp)
+    bp          <- barplot(var_exp, names.arg = paste0("FPC", seq_len(K_total)),
                   col = "steelblue", border = "white", ylim = c(0, 100),
-                  main = "Variance Expliquee par Composante", ylab = "% Variance", cex.names = 0.7)
+                  main      = "Variance Explained per Component",
+                  ylab      = "% Variance", cex.names = 0.7)
     lines(x = bp, y = var_cum, type = "b", pch = 19, col = "red", lwd = 1.5)
     text(x = bp, y = var_cum, labels = paste0(round(var_cum, 0), "%"), pos = 3, cex = 0.7, col = "red")
-    # Legend supprimee
 
-    # B. Zones de Densite (KDE) - Seulement le réel pour le fond
+    # B. Density zones (KDE) — real data
     fdapace::CreateOutliersPlot(res_fpca, optns = list(fIndices = c(1,2), variant = "KDE"))
-    title(main = "Zones de Densite (Espace Latent)", cex.main = 0.9)
-    # Legend de fdapace supprimee
+    title(main = "Density Zones (Latent Space)", cex.main = 0.9)
 
-    # C. Projection des spectres simules SUR le fond createoutliersplot
-    # 1. On trace le fond KDE
+    # C. Simulated scores projected onto the KDE background
     fdapace::CreateOutliersPlot(res_fpca, optns = list(fIndices = c(1,2), variant = "KDE"))
 
-    # 2. On superpose les points simulés en forçant le tracé sur le graphique existant
-    # Nous masquons les points réels en utilisant le même fond KDE
-
-    # On définit les couleurs (Rainbow est plus automatique pour le package)
     palette_sim <- rainbow(k)
-
-    # 3. Superposition des points simulés (+) sans points réels
     points(all_sim_scores[,1], all_sim_scores[,2],
-           pch = 3, col = palette_sim[rep(1:k, n_per_cluster)],
+           pch = 3, col = palette_sim[rep(seq_len(k), n_per_cluster)],
            cex = 0.8)
 
-    title(main = "Projection des spectres simules", cex.main = 0.9)
-    # Legend supprimee
+    title(main = "Projection of Simulated Spectra", cex.main = 0.9)
 
-    # D. Spectres Reconstitues (Colories par souche, sans légende)
+    # D. Reconstructed simulated spectra (coloured by cluster)
     plot(m_z, simulated_matrix[1,], type = "n",
          ylim = range(simulated_matrix),
-         main = "Spectres Simules Reconstitues", xlab = "m/z", ylab = "Intensite")
+         main = "Reconstructed Simulated Spectra",
+         xlab = "m/z", ylab = "Intensity")
 
-    for(i in 1:nrow(simulated_matrix)) {
-      #On utilise l'index numerique pour la couleur
-      color_idx <- rep(1:k, n_per_cluster)
-      lines(m_z, simulated_matrix[i,],
-            col = adjustcolor(palette_sim[color_idx[i]], alpha.f = 0.3), lwd = 0.5)
+    color_idx <- rep(seq_len(k), n_per_cluster)
+    for (i in seq_len(nrow(simulated_matrix))) {
+      lines(m_z, simulated_matrix[i, ],
+            col = adjustcolor(palette_sim[color_idx[i]], alpha.f = 0.3),
+            lwd = 0.5)
     }
 
   }

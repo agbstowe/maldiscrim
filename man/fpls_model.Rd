@@ -3,9 +3,9 @@
 \docType{data}
 \name{fpls_model}
 \alias{fpls_model}
-\title{Precomputed fPLS_DA Model for Demonstration}
+\title{Precomputed FPLS_DA Model for Demonstration}
 \format{
-A list of class \code{fPLS_DA} containing PLS scores, loadings,
+A list of class \code{FPLS_DA} containing PLS scores, loadings,
 and the internal LDA model components.
 }
 \source{
@@ -15,7 +15,7 @@ Precomputed from the internal \code{spectra100} dataset.
 fpls_model
 }
 \description{
-A pre-trained \code{fPLS_DA} model object fitted on the \code{spectra100} dataset
+A pre-trained \code{FPLS_DA} model object fitted on the \code{spectra100} dataset
 using B-splines decomposition with 1050 basis functions. This cached model
 avoids redundant heavy computations during examples and vignettes execution.
 }

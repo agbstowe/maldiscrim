@@ -1,8 +1,8 @@
 Package: maldiscrim
 Title: Analysis and Discrimination of MALDI-TOF Mass Spectra
-Version: 0.0.0.9000
+Version: 0.0.1
 Authors@R: 
-    person("Stowe", "AGBESSI", , "agb.stowe@gmail.com", role = c("aut", "cre"))
+    person("Stowe", "AGBESSI", "Paul Marie", "GROLLEMUND", , "agb.stowe@gmail.com", role = c("aut", "cre"))
 Description: Tools for the processing and discriminant analysis of MALDI-TOF mass spectra. 
     The package implements functional data analysis techniques, specifically Functional Partial Least Squares - 
     Discriminant Analysis (FPLS-DA), and deep learning methods via Convolutional Neural Networks (CNN). It includes 
@@ -28,8 +28,10 @@ Imports:
     MALDIquant,
     MALDIquantForeign,
     MASS,
+    pals,
     plotly,
     pls,
+    RColorBrewer,
     reticulate,
     tidyr,
     umap,
