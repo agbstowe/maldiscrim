@@ -2,53 +2,66 @@
 % Please edit documentation in R/plots_spectra.R
 \name{plot_functions}
 \alias{plot_functions}
-\alias{plot_spectra_3d}
-\alias{plot_spectra_2d}
-\alias{plot_pls_var}
-\alias{plot_pls_weights}
-\alias{plot_spectra_umap}
+\alias{plotSpectra3D}
+\alias{plotSpectra2D}
+\alias{plotPLSvar}
+\alias{plotPLSweights}
+\alias{plotSpectraUMAP}
 \title{Visualisation functions for maldiscrim outputs}
 \usage{
-plot_spectra_3d(object, comp = c(1, 2, 3), show_proba = FALSE, ...)
+plotSpectra3D(
+  object,
+  comp = c(1, 2, 3),
+  show_proba = FALSE,
+  palette = NULL,
+  ...
+)
 
-plot_spectra_2d(object, comp = c(1, 2), show_proba = FALSE, ...)
+plotSpectra2D(object, comp = c(1, 2), show_proba = FALSE, palette = NULL, ...)
 
-plot_pls_var(object)
+plotPLSvar(object)
 
-plot_pls_weights(object, comp = 1)
+plotPLSweights(object, comp = 1)
 
-plot_spectra_umap(
+plotSpectraUMAP(
   object,
   n_neighbors = 15,
   min_dist = 0.1,
   show_proba = FALSE,
+  palette = NULL,
+  seed = 42,
   ...
 )
 }
 \arguments{
-\item{object}{A fitted model object of class inheriting from \code{"fPLS_DA"}.}
+\item{object}{A fitted model object of class inheriting from \code{"FPLS_DA"}.}
 
 \item{comp}{A numeric vector specifying the projection axes or component to display.}
 
 \item{show_proba}{Logical. If \code{TRUE}, sample points are colored by group, and their transparency is dynamically scaled based on their
 maximum LDA posterior probability tier: 1.0 (\eqn{\ge 0.8}), 0.6 (\eqn{\ge 0.5}), or 0.2 (\eqn{< 0.5}).}
 
+\item{palette}{Either \code{NULL} (automatic) or a user-supplied palette: a character vector of colours or a named \code{RColorBrewer} palette
+string. When \code{NULL}, \code{"Set1"} is used for up to 8 groups and \code{pals} for larger numbers of groups.}
+
 \item{...}{Further arguments passed to or from other internal methods.}
 
 \item{n_neighbors}{Integer. Number of nearest neighbors configuration for the UMAP algorithm.}
 
 \item{min_dist}{Numeric. Controls how tightly UMAP packs points together in the layout.}
+
+\item{seed}{Integer. Random seed passed to the UMAP algorithm to ensure reproducible layouts across calls. Default is \code{42}.}
 }
 \description{
-This group of functions provides a comprehensive suite of tools to visually explore, diagnose, and interpret the results of a fitted \code{fPLS_DA} model.
+This group of functions provides a comprehensive suite of tools to visually explore, diagnose, and interpret the results of a fitted \code{FPLS_DA} model.
 It includes classical 2D/3D score projections, UMAP manifold embeddings, variance scree plots, and spectral loading weight profiles.
 }
 \details{
-The score-based plotting functions (\code{plot_spectra_2d}, \code{plot_spectra_3d},
-and \code{plot_spectra_umap}) assist in assessing cluster separation in different latent spaces.
+The score-based plotting functions (\code{plotSpectra2D}, \code{plotSpectra3D},
+and \code{plotSpectraUMAP}) assist in assessing cluster separation in different latent spaces.
 When \code{show_proba = TRUE}, they act as a diagnostic layer to visually isolate samples near classification boundaries.
 
-Diagnostic plots (\code{plot_pls_var} and \code{plot_pls_weights}) help identify
+Diagnostic plots (\code{plotPLSvar} and \code{plotPLSweights}) help identify
 the optimal number of components and track down specific mass-to-charge (\eqn{m/z}) channels.
 }
 \section{3D Score Projection}{
@@ -82,19 +95,19 @@ Projects the full matrix of high-dimensional PLS scores into a non-linear 2D lay
 \dontrun{
 # Assuming 'fit_model' is generated
 # 1. 2D Score Projection
-plot_spectra_2d(fit_model, comp = c(1, 2), show_proba = TRUE)
+plotSpectra2D(fit_model, comp = c(1, 2), show_proba = TRUE)
 
 # 2. Interactive 3D Plot
-plot_spectra_3d(fit_model, comp = c(1, 2, 3))
+plotSpectra3D(fit_model, comp = c(1, 2, 3))
 
 # 3. Variance Scree Plot
-plot_pls_var(fit_model)
+plotPLSvar(fit_model)
 
 # 4. Loading Profiles
-plot_pls_weights(fit_model, comp = 1)
+plotPLSweights(fit_model, comp = 1)
 
 # 5. Non-linear UMAP Mapping
-plot_spectra_umap(fit_model, n_neighbors = 10, min_dist = 0.05)
+plotSpectraUMAP(fit_model, n_neighbors = 10, min_dist = 0.05)
 }
 
 }

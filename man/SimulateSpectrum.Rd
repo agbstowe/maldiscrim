@@ -4,7 +4,7 @@
 \alias{SimulateSpectrum}
 \title{Simulate spectrum using Functionnal Principal Components Analysis (FPCA)}
 \usage{
-SimulateSpectrum(data, n, k = NULL, factor_noise = 1, plot = FALSE)
+SimulateSpectrum(data, n, k = NULL, factorNoise = 1, plot = FALSE)
 }
 \arguments{
 \item{data}{A numeric matrix of Mass Spectrometry (MSP) data, where rows represent samples and columns represent m/z variables.}
@@ -13,17 +13,17 @@ SimulateSpectrum(data, n, k = NULL, factor_noise = 1, plot = FALSE)
 
 \item{k}{Integer. Number of clusters/strains to identify in the latent space. If \code{NULL}, it defaults to 3.}
 
-\item{factor_noise}{A numeric multiplier used to scale the adaptive noise injected into the simulated scores.
+\item{factorNoise}{A numeric multiplier used to scale the adaptive noise injected into the simulated scores.
 Higher values increase the simulated diversity (default is 1).}
 
-\item{plot}{Logical. If \code{TRUE}, the function displays a $2 x 2$ diagnostic dashboard
+\item{plot}{Logical. If \code{TRUE}, the function displays a 2 x 2 diagnostic dashboard
 showing variance explanation, density zones, latent projections, and reconstructed spectra.}
 }
 \value{
-A numeric matrix with $n$ rows and $p$ columns containing the simulated spectra. Rows are named after their simulated cluster origin.
+A numeric matrix with n rows and p columns containing the simulated spectra. Rows are named after their simulated cluster origin.
 }
 \description{
-Simulates a set of $n$ standard spectra based on real or simulated data using Functional Principal Components Analysis (FPCA) and adaptive noise injection.
+Simulates a set of n standard spectra based on real or simulated data using Functional Principal Components Analysis (FPCA) and adaptive noise injection.
 }
 \details{
 The function transforms the input mass spectrometry matrix into functional data objects using \code{MakeFPCAInputs}.
@@ -49,7 +49,7 @@ dim(simulated_data)
 
 # Run a simulation with diagnostic plots enabled
 simulated_data_plots <- SimulateSpectrum(data = spectra100, n = 60, k = 4,
-                                            factor_noise = 1.2, plot = TRUE)
+                                            factorNoise = 1.2, plot = TRUE)
 dim(simulated_data_plots)
 }
 

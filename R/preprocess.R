@@ -1,16 +1,16 @@
 #' Import and Preprocessing of Biological Replicates from MALDI-TOF Strains
 #'
 #' @description
-#' `process_maldi` automates the complete preprocessing pipeline for raw MALDI-TOF mass spectra organized in strain-specific subdirectories.
+#' `ProcessMALDI` automates the complete preprocessing pipeline for raw MALDI-TOF mass spectra organized in strain-specific subdirectories.
 #' It handles variance stabilization, smoothing, baseline removal, intensity calibration, technical
 #' replicate alignment, and computes Mean Mass Spectra (MSP) for each biological replicate.
 #'
-#' @param data_file Character. Path to the parent directory containing strain subfolders with raw spectra files.
-#' @param method_baseline Character. The baseline subtraction method to be passed to `MALDIquant::removeBaseline`. Default is `"SNIP"`.
+#' @param dataFile Character. Path to the parent directory containing strain subfolders with raw spectra files.
+#' @param methodBaseline Character. The baseline subtraction method to be passed to `MALDIquant::removeBaseline`. Default is `"SNIP"`.
 #' @param halfWindowSize Integer. The half-window size used for Savitzky-Golay intensity smoothing. Default is `10`.
 #'
 #' @details
-#' The function scans the `data_file` directory for subfolders, where each subfolder
+#' The function scans the `dataFile` directory for subfolders, where each subfolder
 #' represents a unique biological strain. For each strain, the following sequential pipeline is executed via the `MALDIquant` ecosystem:
 #' \enumerate{
 #'   \item **Importation:** Reads raw data files using \code{\link[MALDIquantForeign]{import}}.
@@ -41,11 +41,7 @@
 #' path <- "path/to/data"
 #'
 #' # Process all raw spectra into a standardized intensity matrix
-#' spectra_matrix <- process_maldi(
-#'   data_file = path,
-#'   method_baseline = "SNIP",
-#'   halfWindowSize = 10
-#' )
+#' spectra_matrix <- ProcessMALDI(dataFile = path, methodBaseline = "SNIP", halfWindowSize = 10)
 #'
 #' # Preview result
 #' dim(spectra_matrix)
@@ -57,56 +53,54 @@
 #'
 #'
 #' @export
-process_maldi <- function(data_file, method_baseline = "SNIP", halfWindowSize = 10) { # length intensity a ajouter
+ProcessMALDI <- function(dataFile, methodBaseline = "SNIP", halfWindowSize = 10) { # length intensity adding
 
-  # 1. Liste des dossiers de souches
-  souches <- list.dirs(data_file, full.names = FALSE, recursive = FALSE)
+  strains <- list.dirs(dataFile, full.names = FALSE, recursive = FALSE)
+  rep_bio <- do.call(rbind, lapply(strains, function(strain_){
+    file_strain <- file.path(dataFile, strain_)
 
-  rep_bio <- do.call(rbind, lapply(souches, function(souche){
-    file_souche <- file.path(data_file, souche)
-
-    ### Importation via MALDIquantForeign
-    spectra <- MALDIquantForeign::import(file_souche, verbose = FALSE)
-
-    ### Pipeline de pretraitement
-    #Stabilisation de la variance
+    ## Importation and Preprocessing
+    spectra <- MALDIquantForeign::import(file_strain, verbose = FALSE)
+    # Variance Stabilization
     spectra <- MALDIquant::transformIntensity(spectra, method = "sqrt")
-    #Smoothing
+    # Smoothing
     spectra <- MALDIquant::smoothIntensity(spectra, method = "SavitzkyGolay", halfWindowSize = halfWindowSize)
-    #Suppression de la ligne de base
-    spectra <- MALDIquant::removeBaseline(spectra, method = method_baseline, iterations = 100)
-    #Etalonnage/normalisation de l'intensite
+    # Baseline removing
+    spectra <- MALDIquant::removeBaseline(spectra, method = methodBaseline, iterations = 100)
+    # Normalization
     spectra <- MALDIquant::calibrateIntensity(spectra, method = "TIC")
 
-    # Groupement par Replicas Biologiques (via metadonnees). On utilise la logique Nom du replicas + Mois
+    # Grouping by biologic replicas with replica names and month
     strain <- factor(sapply(spectra, function(x) {
       paste0(MALDIquant::metaData(x)$fullName, "_", lubridate::month(MALDIquant::metaData(x)$acquisitionDate))
     }))
     strain_spectra <- split(spectra, strain)
 
-
-    # Alignement et calcul du spectre moyen (MSP) pour chaque replica bio
+    # Alignment and MSP computation
     msp_list <- lapply(strain_spectra, function(spectralist) {
       aligned <- MALDIquant::alignSpectra(spectralist, halfWindowSize = 20, SNR = 2, tolerance = 0.001, warpingMethod = "lowess")
       return(MALDIquant::averageMassSpectra(aligned, method = "mean"))
     })
 
+    # msp_strain <- do.call(cbind, lapply(msp_list, function(msp_obj) {
+    #   intensity <- msp_obj@intensity
+    #   length(intensity) <- 20664
+    #   intensity[is.na(intensity)] <- 0
+    #   return(intensity)
+    # }))
 
-    # Chaque colonne est un replica bio (MSP) et on transforme en vecteur numerique (longueur fixe a 20664 par defaut)
-    msp_souche <- do.call(cbind, lapply(msp_list, function(msp_obj) {
+    msp_strain <- vapply(msp_list, function(msp_obj) {
       intensity <- msp_obj@intensity
       length(intensity) <- 20664
       intensity[is.na(intensity)] <- 0
       return(intensity)
-    }))
+    }, FUN.VALUE = numeric(20664))
 
-    # On transpose la matrice msp_souche (lignes = replicas bio, colonnes = masses)
-    msp_souche <- t(msp_souche)
+    msp_strain <- t(msp_strain)
 
-    # On identifie les lignes avec le nom du dossier parent (la souche)
-    rownames(msp_souche) <- rep(souche, nrow(msp_souche))
+    rownames(msp_strain) <- rep(strain, nrow(msp_strain))
 
-    return(msp_souche)
+    return(msp_strain)
   }))
 
   return(rep_bio)
