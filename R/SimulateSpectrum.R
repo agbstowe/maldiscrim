@@ -114,7 +114,7 @@ SimulateSpectrum <- function(data, n, k = NULL, factorNoise = 1, plot = FALSE) {
                               targetGrid = m_z,
                               currentGrid = workGrid))
 
-  rownames(simulated_matrix) <- paste("strain ", rep(seq_len(k), n_per_cluster))
+  rownames(simulated_matrix) <- paste0("strain ", rep(seq_len(k), n_per_cluster))
   colnames(simulated_matrix) <- colnames(data)
 
 
