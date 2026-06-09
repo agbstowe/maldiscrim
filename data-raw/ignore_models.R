@@ -4,7 +4,7 @@
 data("spectra100", package = "maldiscrim")
 
 # Creer le modele
-fpls_model <- fit.fPLS_DA(data = spectra100, method = "bsplines", nbasis = 1050)
+fpls_model <- fitFPLS_DA(data = spectra100, method = "bsplines", nbasis = 1050)
 
 # L'enregistrer dans sysdata.rda
 usethis::use_data(fpls_model, overwrite = TRUE)

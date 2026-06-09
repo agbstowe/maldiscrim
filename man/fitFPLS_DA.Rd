@@ -11,10 +11,10 @@ fitFPLS_DA(
   ncomp = NULL,
   argvals = 2001:22664,
   rangeval = c(1999, 22664),
-  n_folds = 5,
+  nfolds = 5,
   filter = "la14",
   boundary = "periodic",
-  n.levels = NULL,
+  nlevels = NULL,
   level = 3,
   precomputed = FALSE
 )
@@ -35,20 +35,20 @@ components is automatically determined using the one-sigma heuristic based on Cr
 
 \item{rangeval}{A numeric vector of length 2 defining the domain range for the B-spline basis.}
 
+\item{nfolds}{Integer. Number of folds for the internal cross-validation performed during PLS fitting. Default is \code{5}.}
+
 \item{filter}{Character. The wavelet filter type passed to \code{\link[wavelets]{dwt}} when \code{method = "wavelets"}. Default is \code{"la14"}.}
 
 \item{boundary}{Character. The boundary handling method passed to \code{\link[wavelets]{dwt}}. Default is \code{"periodic"}.}
+
+\item{nlevels}{Integer. Total number of decomposition levels for the wavelet transform.
+If \code{NULL}, it is automatically set to the maximum possible level.}
 
 \item{level}{Integer. The specific wavelet decomposition resolution level from which
 coefficients are extracted for downstream classification. Default is \code{3}.}
 
 \item{precomputed}{Logical. If \code{TRUE}, the function bypasses all heavy computations and returns a built-in
 pre-trained model object. Primarily used to speed up examples and unit testing. Default is \code{FALSE}.}
-
-\item{nfolds}{Integer. Number of folds for the internal cross-validation performed during PLS fitting. Default is \code{5}.}
-
-\item{nlevels}{Integer. Total number of decomposition levels for the wavelet transform.
-If \code{NULL}, it is automatically set to the maximum possible level.}
 }
 \value{
 An object of class \code{"FPLS_DA"}. This object is a named list containing:
@@ -95,12 +95,12 @@ data("spectra100", package = "maldiscrim")
 
 # Fit with B-Splines functional basis
 bspline_model <- fitFPLS_DA(
-  data = spectra100, method = "bsplines", nbasis = 1050, n_folds = 5
+  data = spectra100, method = "bsplines", nbasis = 1050, nfolds = 5
   )
 
 # Fit with Wavelets multi-resolution decomposition
 # wavelet_model <- fitFPLS_DA(
-# data = spectra100, method = "wavelets", level = 3, n_folds = 5)
+# data = spectra100, method = "wavelets", level = 3, nfolds = 5)
 }
 
 }

@@ -97,7 +97,7 @@ To evaluate classifier stability under realistic conditions, SimulateSpectrum pe
 
 ```{r , message=FALSE, warning=FALSE, fig.width=12, fig.height=8, out.width="100%", fig.align="center"}
 # Simulate 40 new spectra across 3 latent clusters with diagnostic plots enabled
-simulated_spectra <- SimulateSpectrum(data = spectra100, n = 60, k = 3, factor_noise = 1, plot = TRUE)
+simulated_spectra <- SimulateSpectrum(data = spectra100, n = 60, k = 3, factorNoise = 1, plot = TRUE)
 ```
 
 ---
@@ -108,8 +108,8 @@ The package includes advanced graphic functions to inspect microbial strain segr
 ```{r , message=FALSE, warning=FALSE, fig.width=12, fig.height=8, out.width="100%", fig.align="center"}
 # par(mfrow = c(1,2))
 
-plotSpectra2D(fit_model, comp = c(1, 2), show_proba = TRUE)
-plotSpectra2D(fit_model, comp = c(1, 2), show_proba = FALSE)
+plotSpectra2D(fit_model, comp = c(1, 2), show_proba = TRUE , palette = NULL)
+plotSpectra2D(fit_model, comp = c(1, 2), show_proba = FALSE, palette = NULL)
 ```
 
 
@@ -118,7 +118,7 @@ To analyze complex cluster sub-structures, plotSpectra3D builds an interactive 3
 
 ```{r , message=FALSE, warning=FALSE, fig.width=12, fig.height=8, out.width="100%", fig.align="center"}
 # Generates an interactive 3D plot (supporting zoom and rotation)
-plotSpectra3D(fit_model, comp = c(1, 2, 3), show_proba = FALSE)
+plotSpectra3D(fit_model, comp = c(1, 2, 3), show_proba = FALSE, palette = NULL)
 ```
 
 **UMAP Non-linear Embedding Projection (plotSpectraUMAP)**
@@ -142,3 +142,27 @@ plotPLSvar(fit_model)
 plotPLSweights(fit_model, comp = 1)
 ```
 
+---
+
+### 6. Model Summary
+
+Once the model is fitted, `summary()` provides a structured diagnostic overview of the entire FPLS-DA pipeline in a single call. It covers four sections: the functional decomposition settings, the PLS dimension reduction statistics, the training data composition, and the in-sample classification performance.
+
+```{r, message=FALSE, warning=FALSE}
+summary(fit_model)
+```
+
+The function can also print a formatted report directly to the console. The returned object `s` also allows programmatic access to every computed statistic without re-running the summary.
+
+```{r, message=FALSE, warning=FALSE}
+s = summary(fit_model)
+
+# Overall accuracy
+cat(sprintf("Overall in-sample accuracy : %.1f%%\n", s$accuracy * 100))
+
+# Per-group recall
+print(s$recall)
+
+# Full confusion matrix
+print(s$confusion)
+```
