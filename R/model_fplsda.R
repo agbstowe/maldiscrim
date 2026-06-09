@@ -67,19 +67,19 @@
 #'
 #' # Fit with B-Splines functional basis
 #' bspline_model <- fitFPLS_DA(
-#'   data = spectra100, method = "bsplines", nbasis = 1050, n_folds = 5
+#'   data = spectra100, method = "bsplines", nbasis = 1050, nfolds = 5
 #'   )
 #'
 #' # Fit with Wavelets multi-resolution decomposition
 #' # wavelet_model <- fitFPLS_DA(
-#' # data = spectra100, method = "wavelets", level = 3, n_folds = 5)
+#' # data = spectra100, method = "wavelets", level = 3, nfolds = 5)
 #' }
 #'
 #' @importFrom stats sd aggregate
 #' @export
 fitFPLS_DA <- function(data, method = c("bsplines", "wavelets"), nbasis = 1050, ncomp = NULL, argvals = 2001:22664,
-                          rangeval = c(1999,22664), n_folds = 5,
-                          filter = "la14", boundary = "periodic", n.levels = NULL, level = 3, precomputed = FALSE) {
+                          rangeval = c(1999,22664), nfolds = 5,
+                          filter = "la14", boundary = "periodic", nlevels = NULL, level = 3, precomputed = FALSE) {
 
   if (precomputed) {
     message("Loading precomputed FPLS_DA model from cache")
@@ -259,28 +259,135 @@ predict.FPLS_DA <- function(object, newdata = NULL, threshold = NULL, ...) {
 
 
 
-#' Resume statistique du modele
+
+#' Summary Method for FPLS_DA Model Fits
 #'
 #' @description
-#' Description
+#' Prints a structured summary of a fitted \code{FPLS_DA} model, covering the decomposition settings, PLS dimension reduction,
+#' training data composition, and in-sample classification performance.
 #'
-#' @param object ...
+#' @method summary FPLS_DA
+#'
+#' @param object A fitted model object of class \code{"FPLS_DA"}.
+#' @param ... Further arguments passed to or from other methods (currently ignored).
 #'
 #' @details
-#' Additional details...
+#' The summary is organised into three sections:
+#' \itemize{
+#'   \item **Model configuration** — functional decomposition method and its associated parameters (number of B-spline basis functions,
+#'      or wavelet filter, boundary, decomposition level and total levels).
+#'   \item **PLS dimension reduction** — number of components searched, retained, and removed by the near-zero variance filter, along with the
+#'     cumulative variance explained by the retained components.
+#'   \item **Training data and performance** — number of samples, group  distribution table, in-sample confusion matrix, overall accuracy, and
+#'     per-group recall.
+#' }
 #'
-#' @return function outputs
+#' In-sample predictions are obtained by calling \code{predict.FPLS_DA} on the training coefficients (i.e. \code{newdata = NULL}).
+#'
+#' @return Invisibly returns a named list with the following elements, allowing programmatic access to the computed summary statistics:
+#' \item{method}{Character. Functional decomposition method.}
+#' \item{ncompOpt}{Integer. Number of PLS components retained.}
+#' \item{nRemoved}{Integer. Number of components removed by variance filter.}
+#' \item{varExp}{Numeric. Cumulative variance explained by retained components (percentage).}
+#' \item{nSamples}{Integer. Total number of training samples.}
+#' \item{nGroups}{Integer. Number of distinct groups.}
+#' \item{Frequency}{Table. Sample counts per group.}
+#' \item{confusion}{Table. In-sample confusion matrix.}
+#' \item{accuracy}{Numeric. Overall in-sample accuracy (0–1).}
+#' \item{recall}{Named numeric vector. Per-group recall (0–1).}
+#'
+#' @seealso \code{\link{fitFPLS_DA}}, \code{\link{predict.FPLS_DA}}
 #'
 #' @examples
-#' # example code
+#' model <- fitFPLS_DA(precomputed = TRUE)
+#' summary(model)
 #'
+#' # Programmatic access to summary statistics
+#' s <- summary(model)
+#' s$accuracy
+#' s$confusion
 #'
 #' @export
-summary_spectra <- function(object) {
-  cat("Resume du Modele maldiscrim \n")
-  cat("Methode de base :", object$method, "\n")
-  if(object$method == "bsplines") cat("Nombre de bases  :", object$nbasis, "\n")
-  cat("Composantes PLS  :", object$ncomp, " (", sum(object$const_idx), " supprimees)\n", sep="")
-  cat("Nombre de souches :", length(object$labels), "\n")
-  cat("Souches identifiees :", paste(object$labels, collapse=","), "\n")
+summary.FPLS_DA <- function(object, ...) {
+
+  # In-sample predictions
+  pred        <- predict.FPLS_DA(object, newdata = NULL)
+  true_labels <- as.character(object$labels)
+  confusion   <- table(Predicted = pred$class, Actual = true_labels)
+  accuracy    <- sum(diag(confusion)) / sum(confusion)
+
+  # Per-group recall:
+  recall <- sapply(colnames(confusion), function(g) {
+    confusion[g, g] / sum(confusion[, g])
+  })
+
+  # Variance explained by retained components
+  pct      <- object$pls_model$Xvar / object$pls_model$Xtotvar * 100
+  var_exp  <- sum(pct[seq_len(object$ncompOpt)])
+  nRemoved <- sum(object$const_idx)
+
+  # Group distribution
+  Frequency <- table(Freq = true_labels)
+
+  sep_thick <- strrep("=", 55)
+  sep_thin  <- strrep("-", 55)
+
+  cat(sep_thick, "\n")
+  cat(" FPLS-DA Model Summary\n")
+  cat(sep_thick, "\n\n")
+
+  # 1: Model configuration
+  cat("[ 1 ] Functional Decomposition\n")
+  cat(sep_thin, "\n")
+  cat(sprintf("  Method           : %s\n", object$method))
+
+  if (object$method == "bsplines") {
+    cat(sprintf("  Number of bases  : %d\n", object$nbasis))
+    cat(sprintf("  Argument range   : [%g, %g]\n", object$argvals[1], utils::tail(object$argvals, 1)))
+  } else {
+    cat(sprintf("  Wavelet filter   : %s\n",   object$filter))
+    cat(sprintf("  Boundary         : %s\n",   object$boundary))
+    cat(sprintf("  Resolution level : %d\n",   object$level))
+    cat(sprintf("  Total levels     : %d\n",   object$nlevels))
+  }
+
+  # 2: PLS dimension reduction
+  cat("\n[ 2 ] PLS Dimension Reduction\n")
+  cat(sep_thin, "\n")
+  cat(sprintf("  Components searched  : %d\n", object$pls_model$ncomp))
+  cat(sprintf("  Components retained  : %d\n", object$ncompOpt))
+  cat(sprintf("  Components removed   : %d  (near-zero variance)\n", nRemoved))
+  cat(sprintf("  Cumulative variance  : %.1f%%\n", var_exp))
+
+  # 3: Training data and performance
+  cat("\n[ 3 ] Training Data\n")
+  cat(sep_thin, "\n")
+  cat(sprintf("  Samples : %d\n", length(true_labels)))
+  cat(sprintf("  Groups  : %d\n\n", length(Frequency)))
+  cat("  Distribution per group:\n")
+  print(Frequency, quote = FALSE)
+
+  cat("\n[ 4 ] In-Sample Classification Performance\n")
+  cat(sep_thin, "\n")
+  cat(sprintf("  Overall accuracy : %.1f%%\n\n", accuracy * 100))
+  cat("  Confusion matrix :\n")
+  print(confusion)
+  cat("\n  Per-group recall:\n")
+  recall_df <- data.frame(Group  = names(recall), Recall = sprintf("%.1f%%", recall * 100), row.names = NULL)
+  print(recall_df, row.names = FALSE, quote = FALSE)
+  cat("\n", sep_thick, "\n", sep = "")
+
+  # Invisible return for programmatic access
+  invisible(list(
+    method      = object$method,
+    ncompOpt    = object$ncompOpt,
+    nRemoved   = nRemoved,
+    varExp = var_exp,
+    nSamples   = length(true_labels),
+    nGroups    = length(Frequency),
+    Frequency  = Frequency,
+    confusion   = confusion,
+    accuracy    = accuracy,
+    recall      = recall
+  ))
 }
