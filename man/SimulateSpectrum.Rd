@@ -4,7 +4,14 @@
 \alias{SimulateSpectrum}
 \title{Simulate spectrum using Functionnal Principal Components Analysis (FPCA)}
 \usage{
-SimulateSpectrum(data, n, k = NULL, factorNoise = 1, plot = FALSE)
+SimulateSpectrum(
+  data,
+  n,
+  k = NULL,
+  clust_method = c("kmeans", "hclust", "gmm"),
+  factorNoise = 1,
+  plot = FALSE
+)
 }
 \arguments{
 \item{data}{A numeric matrix of Mass Spectrometry (MSP) data, where rows represent samples and columns represent m/z variables.}
@@ -13,6 +20,18 @@ SimulateSpectrum(data, n, k = NULL, factorNoise = 1, plot = FALSE)
 
 \item{k}{Integer. Number of clusters/strains to identify in the latent space. If \code{NULL}, it defaults to 3.}
 
+\item{clust_method}{Character. Clustering method applied to the first two
+FPCA scores to identify latent sub-structures. One of:
+\itemize{
+\item \code{"kmeans"} (default) — fast, effective for spherical
+clusters of similar size.
+\item \code{"hclust"} — agglomerative hierarchical clustering with
+Ward's D2 linkage; deterministic and robust to outliers.
+\item \code{"gmm"} — Gaussian Mixture Model via \code{mclust};
+handles elliptical clusters of varying shape and size, more realistic
+for biological data.
+}}
+
 \item{factorNoise}{A numeric multiplier used to scale the adaptive noise injected into the simulated scores.
 Higher values increase the simulated diversity (default is 1).}
 
@@ -20,7 +39,7 @@ Higher values increase the simulated diversity (default is 1).}
 showing variance explanation, density zones, latent projections, and reconstructed spectra.}
 }
 \value{
-A numeric matrix with n rows and p columns containing the simulated spectra. Rows are named after their simulated cluster origin.
+A numeric matrix with \code{n} rows and \code{p} columns containing the simulated spectra. Rows are named after their simulated cluster origin.
 }
 \description{
 Simulates a set of n standard spectra based on real or simulated data using Functional Principal Components Analysis (FPCA) and adaptive noise injection.
@@ -28,7 +47,9 @@ Simulates a set of n standard spectra based on real or simulated data using Func
 \details{
 The function transforms the input mass spectrometry matrix into functional data objects using \code{MakeFPCAInputs}.
 An FPCA is then performed to identify the main functional principal components with \code{AIC criterion}.
-Clustering is applied via K-means on the first two principal component scores to capture the underlying sub-structures.
+
+Clustering is applied via the chosen \code{clust_method} on the first two
+FPCA score dimensions to capture the underlying sub-structures.
 
 New scores are simulated cluster by cluster by adding an adaptive Gaussian noise proportional to the empirical variance of each component.
 
@@ -43,14 +64,17 @@ m/z grid.
 # Import 'spectra100' data simulate integrated into the package:
 data(spectra100)
 
-# Run a simulation of 50 spectra without plotting
-simulated_data <- SimulateSpectrum(data = spectra100, n = 50, k = 3, plot = FALSE)
-dim(simulated_data)
+# Default: K-means clustering
+sim_kmeans <- SimulateSpectrum(data = spectra100, n = 50, k = 3)
 
-# Run a simulation with diagnostic plots enabled
-simulated_data_plots <- SimulateSpectrum(data = spectra100, n = 60, k = 4,
-                                            factorNoise = 1.2, plot = TRUE)
-dim(simulated_data_plots)
+# Hierarchical clustering
+sim_hclust <- SimulateSpectrum(data = spectra100, n = 50, k = 3, clust_method = "hclust")
+
+# Gaussian Mixture Model clustering
+sim_gmm <- SimulateSpectrum(data = spectra100, n = 50, k = 3, clust_method = "gmm")
+
+# With diagnostic plots
+SimulateSpectrum(data = spectra100, n = 60, k = 4, clust_method = "gmm", factorNoise = 1.2, plot = TRUE)
 }
 
 }

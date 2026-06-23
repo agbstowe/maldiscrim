@@ -98,7 +98,7 @@ ProcessMALDI <- function(dataFile, methodBaseline = "SNIP", halfWindowSize = 10)
 
     msp_strain <- t(msp_strain)
 
-    rownames(msp_strain) <- rep(strain, nrow(msp_strain))
+    rownames(msp_strain) <- rep(strain_, nrow(msp_strain))
 
     return(msp_strain)
   }))

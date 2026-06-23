@@ -2,6 +2,60 @@
 # They are not exported and not visible in the package documentation.
 
 # ══════════════════════════════════════════════════════════════════════════════
+# Python module cache
+# TensorFlow and Keras register global classes at import time; re-importing
+# them in the same Python session causes "already registered" errors.
+# These helpers ensure each module is imported at most once per R session.
+# ══════════════════════════════════════════════════════════════════════════════
+
+.maldiscrimPyEnv <- new.env(parent = emptyenv())
+
+.tf <- function() {
+  if (is.null(.maldiscrimPyEnv$tf)) {
+    .maldiscrimPyEnv$tf <- reticulate::import("tensorflow")
+  }
+  .maldiscrimPyEnv$tf
+}
+
+.keras <- function() {
+  if (is.null(.maldiscrimPyEnv$keras)) {
+    .maldiscrimPyEnv$keras <- reticulate::import("keras")
+  }
+  .maldiscrimPyEnv$keras
+}
+
+.dml <- function() {
+  if (is.null(.maldiscrimPyEnv$dml)) {
+    pyPath <- system.file("python", package = "maldiscrim")
+    .maldiscrimPyEnv$dml <- reticulate::import_from_path(
+      "maldiscrim_fnn.data_model_loading", path = pyPath
+    )
+  }
+  .maldiscrimPyEnv$dml
+}
+
+.conv <- function() {
+  if (is.null(.maldiscrimPyEnv$conv)) {
+    pyPath <- system.file("python", package = "maldiscrim")
+    .maldiscrimPyEnv$conv <- reticulate::import_from_path(
+      "maldiscrim_fnn.convolution", path = pyPath
+    )
+  }
+  .maldiscrimPyEnv$conv
+}
+
+.dense <- function() {
+  if (is.null(.maldiscrimPyEnv$dense)) {
+    pyPath <- system.file("python", package = "maldiscrim")
+    .maldiscrimPyEnv$dense <- reticulate::import_from_path(
+      "maldiscrim_fnn.dense", path = pyPath
+    )
+  }
+  .maldiscrimPyEnv$dense
+}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # .exportForFNN
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -141,14 +195,16 @@
                            firstLayer, secondLayer, finalLayer, outputPath, verbose) {
 
   # Load Python FNN module
-  pyPath <- system.file("python", package = "maldiscrim")
-  dml    <- reticulate::import_from_path("maldiscrim_fnn.data_model_loading", path = pyPath)
+  # Requires inst/python/maldiscrim_fnn/ to be a proper Python package
+  # (with an __init__.py) containing basis.py, convolution.py, dense.py
+  # and data_model_loading.py, as these files use relative imports.
+  dml    <- .dml()
 
   load_data   <- dml$load_data
   setup_model <- dml$setup_model
 
-  tf          <- reticulate::import("tensorflow")
-  keras       <- reticulate::import("keras")
+  tf    <- .tf()
+  keras <- .keras()
 
   # Output folder
   trainedPath  <- file.path(outputPath, "trainedFNN")
@@ -159,9 +215,13 @@
   trainData    <- datasets[[1]]
   testData     <- datasets[[2]]
 
-  inputShape   <- reticulate::py_eval(
-    sprintf("(%d, 1)", reticulate::py_to_r(testData$element_spec[[1]]$shape[[2]]))
-  )
+  # inputShape   <- reticulate::py_eval(
+  #   sprintf("(%d, 1)", reticulate::py_to_r(testData$element_spec[[1]]$shape[[2]]))
+  # )
+
+  shape_list   <- reticulate::py_to_r(testData$element_spec[[1]]$shape$as_list())
+  num_features <- shape_list[[2]]
+  inputShape   <- as.integer(c(num_features, 1))
 
   # Build filter and layer options
   filterOptions <- list(
@@ -196,6 +256,9 @@
   fnn$save(modelPath)
   if (verbose) message(sprintf("Model saved to: %s", modelPath))
 
+  # Total trainable parameters (computed once, while the model is in memory)
+  nParams <- reticulate::py_to_r(fnn$count_params())
+
   # Save training history
   history      <- reticulate::py_to_r(training$history)
   historyPath  <- file.path(trainedPath, "training_history.json")
@@ -205,6 +268,315 @@
   # return
   invisible(list(
     modelPath = modelPath,
-    history   = history
+    history   = history,
+    nParams   = nParams
   ))
+}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# .writeFeaturesCSV
+# ══════════════════════════════════════════════════════════════════════════════
+
+#' Write spectral intensities to CSV without class labels
+#'
+#' @description
+#' Writes a numeric matrix of spectral intensities to a CSV file, with no label columns.
+#' Used for predicting on new, unlabeled spectra where the true class is unknown.
+#'
+#' @param data A numeric matrix of spectral intensities.
+#' @param filePath Character. Full path where the CSV will be written.
+#'
+#' @keywords internal
+.writeFeaturesCSV <- function(data, filePath) {
+
+  out_dir <- dirname(filePath)
+  if (!dir.exists(out_dir)) {
+    dir.create(out_dir, recursive = TRUE)
+  }
+
+  export_matrix           <- as.matrix(data)
+  colnames(export_matrix) <- paste0("mz_", seq_len(ncol(export_matrix)))
+
+  utils::write.csv(export_matrix, file = filePath, row.names = FALSE)
+}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# .loadFNNModel
+# ══════════════════════════════════════════════════════════════════════════════
+
+#' Load a trained Keras FNN model with its custom layers
+#'
+#' @description
+#' Loads a saved \code{.keras} model file, registering the custom
+#' \code{FunctionalConvolution} and \code{FunctionalDense} layers required to deserialize it.
+#'
+#' @param modelPath Character. Path to the saved \code{.keras} model file.
+#'
+#' @return The loaded Keras model object.
+#'
+#' @keywords internal
+.loadFNNModel <- function(modelPath) {
+
+  conv  <- .conv()
+  dense <- .dense()
+  keras <- .keras()
+
+  customObjects <- list(
+    FunctionalConvolution = conv$FunctionalConvolution,
+    FunctionalDense        = dense$FunctionalDense
+  )
+
+  keras$models$load_model(modelPath, custom_objects = customObjects)
+}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# .loadFNNFeaturesTensor
+# ══════════════════════════════════════════════════════════════════════════════
+
+#' Load spectral features as a TensorFlow tensor
+#'
+#' @description
+#' Reads the CSV file referenced by a fitted \code{FNN} object and returns
+#' its spectral intensity columns, excluding the trailing one-hot label
+#' columns, as a TensorFlow tensor ready for model inference.
+#'
+#' @details
+#' The CSV is read with base R's \code{read.csv()}, which natively handles
+#' both LF and CRLF line endings and the header row, then converted to a
+#' TensorFlow tensor only at the end. This avoids low-level TensorFlow
+#' string-slicing operations, whose Python-style negative-index syntax is
+#' not reliably reproducible from plain R \code{:} expressions.
+#'
+#' @param object A fitted model object of class \code{"FNN"}.
+#'
+#' @return A TensorFlow tensor of shape \code{(n_samples, n_features, 1)},
+#'   with the channel dimension already added.
+#'
+#' @keywords internal
+.loadFNNFeaturesTensor <- function(object) {
+
+  tf <- .tf()
+
+  rawTable  <- utils::read.csv(object$dataPath, check.names = FALSE)
+  nClass    <- length(object$classNames)
+  nFeatures <- ncol(rawTable) - nClass
+
+  featureMatrix <- as.matrix(rawTable[, seq_len(nFeatures), drop = FALSE])
+  storage.mode(featureMatrix) <- "double"
+
+  features <- tf$constant(featureMatrix, dtype = tf$float32)
+  features <- tf$expand_dims(features, -1L)
+
+  features
+}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# .callPythonPredict
+# ══════════════════════════════════════════════════════════════════════════════
+
+#' Call the Python FNN model for prediction via reticulate
+#'
+#' @description
+#' Loads a trained Keras FNN model and produces softmax probabilities for the spectra contained in a given CSV file.
+#'
+#' @details
+#' The CSV is read with base R's \code{read.csv()}, which natively handles
+#' both LF and CRLF line endings and the header row, then converted to a
+#' TensorFlow tensor only at the point of inference. This avoids low-level
+#' TensorFlow string-slicing operations, whose Python-style negative-index
+#' syntax is not reliably reproducible from plain R \code{:} expressions.
+#'
+#' @param modelPath Character. Path to the saved \code{.keras} model file.
+#' @param dataPath Character. Path to the CSV file containing the spectra to predict.
+#' @param nClass Integer. Number of strain classes.
+#' @param batchSize Integer. Batch size used when feeding data to the model.
+#' @param hasLabels Logical. If \code{TRUE}, the CSV contains \code{nClass} trailing one-hot label columns to be
+#' dropped before prediction; if \code{FALSE}, the CSV contains spectral intensities only.
+#'
+#' @return A named list with:
+#' \item{softmax}{A numeric matrix of softmax probabilities, one row per observation and one column per class.}
+#'
+#' @keywords internal
+.callPythonPredict <- function(modelPath, dataPath, nClass, batchSize, hasLabels = TRUE) {
+
+  tf <- .tf()
+  fnn <- .loadFNNModel(modelPath)
+
+  # Read and parse the CSV without train/test split.
+  rawTable  <- utils::read.csv(dataPath, check.names = FALSE)
+  nFeatures <- if (hasLabels) ncol(rawTable) - as.integer(nClass) else ncol(rawTable)
+
+  featureMatrix <- as.matrix(rawTable[, seq_len(nFeatures), drop = FALSE])
+  storage.mode(featureMatrix) <- "double"
+
+  features <- tf$constant(featureMatrix, dtype = tf$float32)
+  features <- tf$expand_dims(features, -1L)
+
+  ds <- tf$data$Dataset$from_tensor_slices(features)
+  ds <- ds$batch(as.integer(batchSize))
+
+  # Getting Proba
+  softmaxProbs <- reticulate::py_to_r(fnn$predict(ds))
+
+  # Return
+  invisible(list(
+    softmax = softmaxProbs
+  ))
+}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# .setMaldiscrimVenvHome
+# ══════════════════════════════════════════════════════════════════════════════
+
+#' Redirect the virtual environment storage location
+#'
+#' @description
+#' Sets the \code{WORKON_HOME} environment variable to a package-specific
+#' cache folder, so that the \code{"maldiscrim-env"} virtual environment is
+#' always created and found in the same, safe location across sessions.
+#'
+#' @details
+#' This avoids failures on machines where \code{reticulate}'s default virtual
+#' environment folder sits inside a cloud-synced directory such as OneDrive.
+#' Since \code{Sys.setenv()} only applies to the current R session, this
+#' function must be called before any operation that creates, lists, or
+#' activates the \code{"maldiscrim-env"} environment.
+#'
+#' @return Invisibly returns the path used as \code{WORKON_HOME}.
+#'
+#' @keywords internal
+.setMaldiscrimVenvHome <- function() {
+
+  venvHome <- tools::R_user_dir("maldiscrim", which = "cache")
+  if (!dir.exists(venvHome)) dir.create(venvHome, recursive = TRUE)
+  Sys.setenv(WORKON_HOME = venvHome)
+
+  invisible(venvHome)
+}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# .checkPythonEnv
+# ══════════════════════════════════════════════════════════════════════════════
+
+#' Check that the maldiscrim Python environment is available and active
+#'
+#' @description
+#' Verifies that the \code{"maldiscrim-env"} virtual environment exists, and
+#' activates it for the current R session if it is not already the active
+#' environment.
+#'
+#' @keywords internal
+.checkPythonEnv <- function() {
+
+  .setMaldiscrimVenvHome()
+
+  envName <- "maldiscrim-env"
+
+  if (!envName %in% reticulate::virtualenv_list()) {
+    stop(sprintf(
+      "The Python environment required for FNN is not set up.\nPlease run maldiscrim_install_python() once before using this function."
+    ), call. = FALSE)
+  }
+
+  currentEnv <- tryCatch(reticulate::py_config()$pythonhome, error = function(e) "")
+
+  if (!grepl(envName, currentEnv, fixed = TRUE)) {
+    reticulate::use_virtualenv(envName, required = TRUE)
+  }
+
+  invisible(TRUE)
+}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# .extractNetworkSpace
+# ══════════════════════════════════════════════════════════════════════════════
+
+#' Extract Activation Spaces (Logits or Softmax) From Keras Model
+#'
+#' @keywords internal
+.extractNetworkSpace <- function(object, on = "logits") {
+
+  fnnModel <- .loadFNNModel(object$modelPath)
+  tf       <- .tf()
+  keras    <- .keras()
+
+  # Read features using the same robust approach as .callPythonPredict
+  rawTable  <- utils::read.csv(object$dataPath, check.names = FALSE)
+  nClass    <- length(object$classNames)
+  nFeatures <- ncol(rawTable) - nClass
+
+  featureMatrix <- as.matrix(rawTable[, seq_len(nFeatures), drop = FALSE])
+  storage.mode(featureMatrix) <- "double"
+
+  features <- tf$constant(featureMatrix, dtype = tf$float32)
+  features <- tf$expand_dims(features, -1L)
+
+  if (on == "softmax") {
+    return(reticulate::py_to_r(fnnModel$predict(features)))
+  } else {
+    # Reproduce the logits extraction from generate_results.py:
+    # clone the model replacing the final softmax with a linear activation,
+    # then copy the weights — this gives true pre-activation logits.
+    clone_fn <- reticulate::py_func(function(layer) {
+      config <- layer$get_config()
+      if (!is.null(config[["activation"]]) && config[["activation"]] == "softmax") {
+        config[["activation"]] <- "linear"
+      }
+      layer$`__class__`$from_config(config)
+    })
+    linearModel <- keras$models$clone_model(fnnModel, clone_function = clone_fn)
+    linearModel$set_weights(fnnModel$get_weights())
+    return(reticulate::py_to_r(linearModel$predict(features)))
+  }
+}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# .loadFeaturesFromCSV
+# ══════════════════════════════════════════════════════════════════════════════
+
+#' Load and prepare feature tensor from the training CSV file
+#'
+#' Reads the CSV file stored at `object$dataPath`, separates the spectral
+#' feature columns from the one-hot encoded class columns, and returns a
+#' TensorFlow tensor ready for model inference.
+#'
+#' This helper centralises the data-loading logic shared by
+#' `plotGradCamFNN`, `plotOcclusionFNN`, and `plotActivationFNN`, replacing
+#' three identical copy-pasted blocks.
+#'
+#' @param object A fitted model object of class `"FNN"`.
+#'
+#' @return A named list with:
+#' \item{features}{A TensorFlow float32 tensor of shape
+#'   `[n_samples, n_features, 1]`, ready for direct model inference.}
+#' \item{nClass}{Integer. Number of class columns in the CSV.}
+#' \item{nFeatures}{Integer. Number of spectral feature columns.}
+#'
+#' @keywords internal
+.loadFeaturesFromCSV <- function(object) {
+
+  tf    <- .tf()
+  nClass <- length(object$classNames)
+
+  rawTable      <- utils::read.csv(object$dataPath, check.names = FALSE)
+  nFeatures     <- ncol(rawTable) - nClass
+  featureMatrix <- as.matrix(rawTable[, seq_len(nFeatures), drop = FALSE])
+  storage.mode(featureMatrix) <- "double"
+
+  features <- tf$constant(featureMatrix, dtype = tf$float32)
+  features <- tf$expand_dims(features, -1L)
+
+  list(
+    features  = features,
+    nClass    = nClass,
+    nFeatures = nFeatures
+  )
 }

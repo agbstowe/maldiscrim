@@ -2,7 +2,7 @@
 % Please edit documentation in R/internals_functions.R
 \name{.selectOptimalNcomp}
 \alias{.selectOptimalNcomp}
-\title{Select the optimal number of PLS components via one-sigma heuristic (internal)}
+\title{Select the optimal number of PLS components via one-sigma heuristic}
 \usage{
 .selectOptimalNcomp(pls_mod)
 }

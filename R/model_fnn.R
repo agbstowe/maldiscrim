@@ -42,7 +42,10 @@
 #'
 #' @return It returns an object of class \code{"FNN"}. This object is a named list containing:
 #' \item{modelPath}{Path to the saved Keras model file.}
+#' \item{dataPath}{Path to the CSV file used for training.}
 #' \item{history}{A named list of training metrics (loss, accuracy) per epoch.}
+#' \item{nParams}{Integer. Total number of trainable parameters in the network.}
+#' \item{labels}{The original factor vector of strain labels assigned to each row of \code{data}.}
 #' \item{classNames}{Character vector of strain names in classification order.}
 #' \item{nClass}{Number of distinct strain classes.}
 #' \item{nSample}{Total number of samples used.}
@@ -119,9 +122,12 @@ fitFNN <- function(data, trainSize  = 0.8, batchSize  = 32L, nbEpochs  = 50L, st
   .validateLayerOptions(finalLayer,  c("nFunctions", "resolution", "basisType", "activation", "pooling"),  "finalLayer")
 
   # Python environment check
-  if (!reticulate::py_available()) {
-    stop("Python is not available. Please run maldiscrim_install_python() first.")
-  }
+  # if (!reticulate::py_available()) {
+  #   stop("Python is not available. Please run maldiscrim_install_python() first.")
+  # }
+
+  # Python environment check
+  .checkPythonEnv()
 
   # Export data to CSV
   nClass     <- length(levels(as.factor(rownames(data))))
@@ -153,7 +159,10 @@ fitFNN <- function(data, trainSize  = 0.8, batchSize  = 32L, nbEpochs  = 50L, st
   # Output object
   modelObj <- list(
     modelPath   = result$modelPath,
+    dataPath    = meta$filePath,
     history     = result$history,
+    nParams     = result$nParams,
+    labels      = as.factor(rownames(data)),
     classNames  = meta$classNames,
     nClass      = meta$nClass,
     nSample     = meta$nSample,
@@ -170,4 +179,291 @@ fitFNN <- function(data, trainSize  = 0.8, batchSize  = 32L, nbEpochs  = 50L, st
 
   class(modelObj) <- "FNN"
   return(modelObj)
+}
+
+
+#' Predict Method for FNN Model Fits
+#'
+#' @description
+#' Obtains predictions (classified strains and posterior probabilities) from a fitted \code{FNN} model object.
+#'
+#' @method predict FNN
+#'
+#' @param object A fitted model object of class \code{"FNN"}.
+#' @param newdata An optional matrix or data frame of new, MALDI-TOF spectral intensities to predict.
+#' If omitted (\code{NULL}), the function retrieves predictions on the data used to fit the model.
+#' @param threshold Numeric. A classification probability threshold (between 0 and 1).
+#' If the maximum softmax probability for a sample is below this threshold,
+#' its predicted class is labeled as \code{"Doubty"}. Default is \code{NULL}.
+#' @param ... Further arguments passed to or from other methods.
+#'
+#' @details
+#' When new spectral data is supplied via \code{newdata}, it is assumed to be unlabeled and is
+#' exported to a temporary CSV file containing only spectral intensities, then passed to the trained Keras model.
+#' The softmax output layer of the network provides, for each observation, a probability for every strain class;
+#' the predicted class is the one with the highest probability.
+#'
+#' @return A named list containing three components:
+#' \item{class}{A character vector of predicted strain assignments for each observation.}
+#' \item{probability}{A numeric vector indicating the maximum softmax probability associated with each prediction.}
+#' \item{softmax}{A numeric matrix of softmax probabilities for every class, one row per observation.}
+#'
+#' @seealso \code{\link{fitFNN}}, \code{\link{summary.FNN}}
+#'
+#' @examples
+#' \donttest{
+#' # data is the output of ProcessMALDI()
+#' fnn_model <- fitFNN(data = spectra100)
+#'
+#' # Predict on the training data by omitting 'newdata'
+#' predict_res <- predict(fnn_model)
+#' table(predict_res$class)
+#'
+#' # Example with 'newdata' on a subset of spectra100
+#' new_spectra <- spectra100[1:5, ]
+#' predict_res <- predict(fnn_model, newdata = new_spectra)
+#' print(predict_res$class)
+#' print(predict_res$probability)
+#' }
+#'
+#' @importFrom stats predict
+#' @export
+predict.FNN <- function(object, newdata = NULL, threshold = NULL, ...) {
+
+  if (!inherits(object, "FNN")) {
+    stop("'object' must be a fitted FNN model.")
+  }
+  if (!is.null(threshold) && (!is.numeric(threshold) || threshold < 0 || threshold > 1)) {
+    stop("'threshold' must be a single numeric value between 0 and 1.")
+  }
+
+  # Python environment check
+  .checkPythonEnv()
+
+  if (is.null(newdata)) {
+    predictPath <- object$dataPath
+    hasLabels   <- TRUE
+
+  } else {
+    if (!is.matrix(newdata) && !is.data.frame(newdata)) {
+      stop("'newdata' must be a matrix or a data.frame.")
+    }
+    tmpCsv      <- tempfile(pattern = "fnn_newdata_", fileext = ".csv")
+    .writeFeaturesCSV(data = newdata, filePath = tmpCsv)
+    predictPath <- tmpCsv
+    hasLabels   <- FALSE
+  }
+
+  # Prediction
+  predResult <- .callPythonPredict(
+    modelPath   = object$modelPath,
+    dataPath    = predictPath,
+    nClass      = object$nClass,
+    batchSize   = object$batchSize,
+    hasLabels   = hasLabels
+  )
+
+  softmaxProbs <- predResult$softmax
+  classNames   <- object$classNames
+
+  maxProbs    <- apply(softmaxProbs, 1, max)
+  finalClass  <- classNames[apply(softmaxProbs, 1, which.max)]
+
+  if (!is.null(threshold)) {
+    finalClass[maxProbs < threshold] <- "Doubty"
+  }
+
+  return(list(
+    class       = finalClass,
+    probability = maxProbs,
+    softmax     = softmaxProbs
+  ))
+}
+
+
+#' Summary Method for FNN Model Fits
+#'
+#' @description
+#' Prints a summary of a fitted \code{FNN} model, covering the network architecture,
+#' training trajectory, and in-sample classification performance.
+#'
+#' @method summary FNN
+#'
+#' @param object A fitted model object of class \code{"FNN"}.
+#' @param ... Further arguments passed to or from other methods.
+#'
+#' @details
+#' The summary is organised into three sections:
+#' \itemize{
+#'   \item **Architecture** — filters, basis type, number of basis functions, resolution and activation for each of the
+#'     two convolutional layers and the final dense layer, along with the total number of trainable parameters.
+#'   \item **Training** — epochs run versus epochs set, the best epoch retained,
+#'     early stopping settings, and a train/validation comparison of loss and accuracy at that best epoch.
+#'   \item **Performance** — number of samples and groups, in-sample confusion matrix, overall accuracy, and per-group recall.
+#' }
+#'
+#' In-sample predictions are obtained by calling \code{predict.FNN} on the training data (i.e. \code{newdata = NULL}).
+#' For the full layer-by-layer Keras architecture, use \code{architectureFNN(object)} instead.
+#'
+#' @return Invisibly returns a named list with the following elements, allowing programmatic access to the computed summary statistics:
+#' \item{nParams}{Integer. Total number of trainable parameters.}
+#' \item{nbEpochsRun}{Integer. Number of epochs actually run before stopping.}
+#' \item{bestEpoch}{Integer. Epoch index whose weights were retained by early stopping.}
+#' \item{trainLoss}{Numeric. Training loss at the best epoch.}
+#' \item{trainAccuracy}{Numeric. Training accuracy at the best epoch.}
+#' \item{valLoss}{Numeric. Validation loss at the best epoch.}
+#' \item{valAccuracy}{Numeric. Validation accuracy at the best epoch.}
+#' \item{nSamples}{Integer. Total number of training samples.}
+#' \item{nGroups}{Integer. Number of distinct groups.}
+#' \item{confusion}{Table. In-sample confusion matrix.}
+#' \item{accuracy}{Numeric. Overall in-sample accuracy (0-1).}
+#' \item{recall}{Named numeric vector. Per-group recall (0-1).}
+#'
+#' @seealso \code{\link{fitFNN}}, \code{\link{predict.FNN}}, \code{\link{architectureFNN}}
+#'
+#' @examples
+#' \donttest{
+#' # data is the output of ProcessMALDI()
+#' fnn_model <- fitFNN(data = spectra100)
+#' summary(fnn_model)
+#'
+#' # Programmatic access to summary statistics
+#' s <- summary(fnn_model)
+#' s$accuracy
+#' s$confusion
+#' }
+#'
+#' @export
+summary.FNN <- function(object, ...) {
+
+  # In-sample predictions
+  pred        <- predict.FNN(object, newdata = NULL)
+  true_labels <- as.character(object$labels)
+  confusion   <- table(Predicted = pred$class, Actual = true_labels)
+  accuracy    <- sum(diag(confusion)) / sum(confusion)
+
+  # Per-group recall
+  recall <- sapply(colnames(confusion), function(g) {
+    confusion[g, g] / sum(confusion[, g])
+  })
+
+  # Best epoch: early stopping restores weights from the epoch with the best monitored value.
+  monitorIsLoss <- grepl("loss", object$monitor, fixed = TRUE)
+  monitorValues <- object$history[[object$monitor]]
+  bestEpoch     <- if (monitorIsLoss) which.min(monitorValues) else which.max(monitorValues)
+  nbEpochsRun   <- length(object$history$loss)
+
+  trainLoss     <- object$history$loss[[bestEpoch]]
+  trainAccuracy <- object$history$accuracy[[bestEpoch]]
+  valLoss       <- object$history$val_loss[[bestEpoch]]
+  valAccuracy   <- object$history$val_accuracy[[bestEpoch]]
+
+  sep_thick <- strrep("=", 56)
+  sep_thin  <- strrep("-", 56)
+
+  cat(sep_thick, "\n")
+  cat(" FNN Model Summary\n")
+  cat(sep_thick, "\n\n")
+
+  # 1: Architecture
+  cat("[ 1 ] Architecture\n")
+  cat(sep_thin, "\n")
+  cat(sprintf("  Layer 1 (conv)  : %d filters, %s (%d fn, res %d), activation : %s\n",
+              object$firstLayer$nFilters, object$firstLayer$basisType,
+              object$firstLayer$nFunctions, object$firstLayer$resolution,
+              object$firstLayer$activation))
+  cat(sprintf("  Layer 2 (conv)  : %d filters, %s (%d fn, res %d), activation : %s\n",
+              object$secondLayer$nFilters, object$secondLayer$basisType,
+              object$secondLayer$nFunctions, object$secondLayer$resolution,
+              object$secondLayer$activation))
+  cat(sprintf("  Layer 3 (dense) : %d classes, %s (%d fn, res %d), activation : %s\n",
+              object$nClass, object$finalLayer$basisType,
+              object$finalLayer$nFunctions, object$finalLayer$resolution,
+              object$finalLayer$activation))
+  cat(sprintf("  Trainable parameters : %s\n", format(object$nParams, big.mark = ",", scientific = FALSE)))
+  cat("\n")
+
+  # 2: Training
+  cat("\n[ 2 ] Training\n")
+  cat(sep_thin, "\n")
+  cat(sprintf("  Epochs run / set    : %d / %d   (best epoch: %d)\n", nbEpochsRun, object$nbEpochs, bestEpoch))
+  cat(sprintf("  Early stopping      : monitor = %s, patience = %d\n", object$monitor, object$patience))
+  cat(sprintf("  Batch size / split  : %d  |  %.0f%% train / %.0f%% validation\n",
+              object$batchSize, object$trainSize * 100, (1 - object$trainSize) * 100))
+  cat("\n")
+  cat(sprintf("  %-14s%-12s%-12s\n", "", "Train", "Validation"))
+  cat(sprintf("  %-14s%-12.4f%-12.4f\n", "Loss", trainLoss, valLoss))
+  cat(sprintf("  %-14s%-12s%-12s\n", "Accuracy",
+              sprintf("%.1f%%", trainAccuracy * 100), sprintf("%.1f%%", valAccuracy * 100)))
+  cat("\n")
+
+  # 3: Performance
+  cat(sprintf("\n[ 3 ] Performance  (n = %d, %d groups)\n", length(true_labels), length(unique(true_labels))))
+  cat(sep_thin, "\n")
+  cat(sprintf("  Overall accuracy : %.1f%%\n\n", accuracy * 100))
+  cat("  Confusion matrix :\n")
+  print(confusion)
+  cat("\n  Per-group recall:\n")
+  recall_df <- data.frame(Group = names(recall), Recall = sprintf("%.1f%%", recall * 100), row.names = NULL)
+  print(recall_df, row.names = FALSE, quote = FALSE)
+
+  # Invisible return for programmatic access
+  invisible(list(
+    nParams       = object$nParams,
+    nbEpochsRun   = nbEpochsRun,
+    bestEpoch     = bestEpoch,
+    trainLoss     = trainLoss,
+    trainAccuracy = trainAccuracy,
+    valLoss       = valLoss,
+    valAccuracy   = valAccuracy,
+    nSamples      = length(true_labels),
+    nGroups       = length(unique(true_labels)),
+    confusion     = confusion,
+    accuracy      = accuracy,
+    recall        = recall
+  ))
+}
+
+
+#' Display the Keras Architecture of a Fitted FNN Model
+#'
+#' @description
+#' Displays the full Keras architecture of a fitted \code{FNN} model, layer by layer.
+#'
+#' @param object A fitted model object of class \code{"FNN"}.
+#'
+#' @details
+#' The trained Keras model is reloaded and its native architecture summary is printed, showing for each layer its name,
+#' output shape, and number of parameters. For a concise statistical report on training and classification performance, use
+#' \code{summary(object)} instead.
+#'
+#' @return Invisibly returns \code{object}.
+#'
+#' @seealso \code{\link{fitFNN}}, \code{\link{summary.FNN}}
+#'
+#' @examples
+#' \donttest{
+#' # data is the output of ProcessMALDI()
+#' fnn_model <- fitFNN(data = spectra100)
+#' architectureFNN(fnn_model)
+#' }
+#'
+#' @export
+architectureFNN <- function(object) {
+
+  if (!inherits(object, "FNN")) {
+    stop("'object' must be a fitted FNN model.")
+  }
+
+  .checkPythonEnv()
+
+  fnn <- .loadFNNModel(object$modelPath)
+
+  cat(strrep("=", 56), "\n")
+  cat(" FNN Keras Architecture\n")
+  cat(strrep("=", 56), "\n\n")
+
+  fnn$summary(print_fn = function(line) cat(line, "\n"))
+
+  invisible(object)
 }

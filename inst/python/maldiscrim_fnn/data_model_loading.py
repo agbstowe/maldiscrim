@@ -41,6 +41,7 @@ def load_data(
     """
     data = tf.io.read_file(filepath)
     # data = tf.strings.split(data, sep='\r\n')[1:-1]
+    data = tf.strings.regex_replace(data, '\r\n', '\n')
     data = tf.strings.split(data, sep='\n')[1:-1]
     data = tf.strings.split(data, sep=',').to_tensor()
     data = tf.strings.to_number(data)
@@ -124,6 +125,7 @@ def load_data_cv(
     """
     data = tf.io.read_file(filepath)
     # data = tf.strings.split(data, sep='\r\n')[1:-1]
+    data = tf.strings.regex_replace(data, '\r\n', '\n')
     data = tf.strings.split(data, sep='\n')[1:-1]
     data = tf.strings.split(data, sep=',').to_tensor()
     data = tf.strings.to_number(data)

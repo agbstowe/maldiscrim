@@ -2,7 +2,7 @@
 % Please edit documentation in R/internals_functions.R
 \name{.computeLDAalpha}
 \alias{.computeLDAalpha}
-\title{Compute LDA posterior probabilities and alpha transparency values (internal)}
+\title{Compute LDA posterior probabilities and alpha transparency values}
 \usage{
 .computeLDAalpha(object)
 }
