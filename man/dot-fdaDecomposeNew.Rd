@@ -2,7 +2,7 @@
 % Please edit documentation in R/internals_functions.R
 \name{.fdaDecomposeNew}
 \alias{.fdaDecomposeNew}
-\title{Project new spectral data into the functional space of a fitted model (internal)}
+\title{Project new spectral data into the functional space of a fitted model}
 \usage{
 .fdaDecomposeNew(newdata, object)
 }

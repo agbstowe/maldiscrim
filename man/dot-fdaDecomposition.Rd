@@ -2,7 +2,7 @@
 % Please edit documentation in R/internals_functions.R
 \name{.fdaDecomposition}
 \alias{.fdaDecomposition}
-\title{Functional decomposition of spectral data (internal)}
+\title{Functional decomposition of spectral data}
 \usage{
 .fdaDecomposition(
   data,

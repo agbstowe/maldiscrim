@@ -2,7 +2,7 @@
 % Please edit documentation in R/internals_functions.R
 \name{.getPalette}
 \alias{.getPalette}
-\title{Select a colour palette adapted to the number of groups (internal)}
+\title{Select a colour palette adapted to the number of groups}
 \usage{
 .getPalette(n, palette = NULL)
 }

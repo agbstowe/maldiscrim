@@ -2,7 +2,7 @@
 
 # .fdaDecomposition
 
-#' Functional decomposition of spectral data (internal)
+#' Functional decomposition of spectral data
 #'
 #' Projects a raw spectral matrix into a reduced coefficient matrix using either a B-spline basis or a Discrete Wavelet Transform (DWT).
 #'
@@ -87,7 +87,7 @@
 
 # .selectOptimalNcomp
 
-#' Select the optimal number of PLS components via one-sigma heuristic (internal)
+#' Select the optimal number of PLS components via one-sigma heuristic
 #'
 #' Determines the optimal number of PLS components by applying the one-sigma
 #' rule to the cross-validated Root Mean Square Error of Prediction (RMSEP):
@@ -119,7 +119,7 @@
 
 # .fdaDecomposeNew
 
-#' Project new spectral data into the functional space of a fitted model (internal)
+#' Project new spectral data into the functional space of a fitted model
 #'
 #' Reprojects new MALDI-TOF spectra into the exact same functional coefficient
 #' space established during training, using either the stored B-spline basis or the original wavelet filter and resolution level.
@@ -149,7 +149,7 @@
 
 # .computeLDAalpha
 
-#' Compute LDA posterior probabilities and alpha transparency values (internal)
+#' Compute LDA posterior probabilities and alpha transparency values
 #'
 #' Extracts the clean PLS scores from a fitted `"FPLS_DA"` object, runs [MASS::lda()] prediction, and maps each sample's maximum posterior
 #' probability to an alpha transparency tier for plotting.
@@ -175,7 +175,7 @@
 
 # .getPalette
 
-#' Select a colour palette adapted to the number of groups (internal)
+#' Select a colour palette adapted to the number of groups
 #'
 #' Returns a character vector of colours based on the number of strain groups and an optional user-supplied palette.
 #'
@@ -205,4 +205,244 @@
     }
     pals::cols25()[seq_len(n)]
   }
+}
+
+
+# .fpcaClustering
+
+#' FPCA decomposition and clustering on spectral data
+#'
+#' Transforms a raw spectral matrix into functional data via
+#' [fdapace::MakeFPCAInputs()] and [fdapace::FPCA()], then applies the chosen
+#' clustering method on the first two functional principal component scores to
+#' identify latent sub-structures.
+#'
+#' @param data A numeric matrix of spectral intensities (rows = samples,
+#'   columns = m/z values). Column names must be set to the m/z indices before
+#'   calling this function.
+#' @param k Integer. Number of clusters. Must be >= 2.
+#' @param n Integer. Total number of spectra to simulate. Used to compute
+#'   `n_per_cluster` proportionally to observed cluster sizes.
+#' @param clust_method Character. One of `"kmeans"` (default), `"hclust"`, or
+#'   `"gmm"`. See Details.
+#'
+#' @details
+#' The three supported clustering methods all operate on the first two FPCA
+#' score dimensions:
+#' \itemize{
+#'   \item `"kmeans"` — K-means via [stats::kmeans()] with `nstart = 25` and
+#'     a fixed seed for reproducibility. Fast and effective when clusters are
+#'     roughly spherical and of similar size.
+#'   \item `"hclust"` — Agglomerative hierarchical clustering via
+#'     [stats::hclust()] with Ward's D2 linkage (`method = "ward.D2"`),
+#'     followed by [stats::cutree()] at `k` groups. Deterministic (no seed
+#'     needed) and robust to outliers.
+#'   \item `"gmm"` — Gaussian Mixture Model via [mclust::Mclust()] with `G =
+#'     k` components. Allows elliptical clusters of varying shape and size,
+#'     which is more realistic for biological data. The covariance structure is
+#'     selected automatically by BIC among standard `mclust` model families.
+#' }
+#'
+#' @return A named list with the following elements:
+#' \item{res_fpca}{The fitted FPCA object returned by [fdapace::FPCA()].}
+#' \item{scores}{Numeric matrix of FPCA scores (rows = samples).}
+#' \item{cluster_ids}{Integer vector of cluster assignments for each sample.}
+#' \item{n_per_cluster}{Integer vector of target simulation counts per cluster,
+#'   proportional to the observed cluster sizes. Adjusted so that the total
+#'   equals `n`.}
+#'
+#' @keywords internal
+.fpcaClustering <- function(data, k, n, clust_method = "kmeans") {
+
+  m_z <- as.numeric(colnames(data))
+
+  # -- FPCA
+  input_data <- fdapace::MakeFPCAInputs(
+    IDs  = rep(seq_len(nrow(data)), each = ncol(data)),
+    tVec = rep(m_z, nrow(data)),
+    yVec = as.vector(t(data))
+  )
+
+  res_fpca <- fdapace::FPCA(
+    input_data$Ly, input_data$Lt,
+    optns = list(dataType = "Dense", methodSelectK = "AIC")
+  )
+  scores      <- res_fpca$xiEst
+  scores_2d   <- scores[, 1:2, drop = FALSE]
+
+  # -- Clustering
+  cluster_ids <- switch(clust_method,
+
+                        "kmeans" = {
+                          set.seed(42)
+                          km <- kmeans(scores_2d, centers = k, nstart = 25)
+                          km$cluster
+                        },
+
+                        "hclust" = {
+                          d   <- dist(scores_2d)
+                          hc  <- hclust(d, method = "ward.D2")
+                          cutree(hc, k = k)
+                        },
+
+                        "gmm" = {
+                          gmm <- mclust::Mclust(scores_2d, G = k, verbose = FALSE)
+                          if (is.null(gmm)) {
+                            stop(sprintf(
+                              "GMM fitting failed for k = %d. Try a different k or clust_method.",
+                              k
+                            ))
+                          }
+                          gmm$classification
+                        },
+
+                        stop(sprintf(
+                          "'clust_method' must be one of \"kmeans\", \"hclust\", or \"gmm\". Got: \"%s\".",
+                          clust_method
+                        ))
+  )
+
+  # -- Proportional allocation
+  prop_clusters <- table(cluster_ids) / length(cluster_ids)
+  n_per_cluster <- as.vector(round(prop_clusters * n))
+  remainder     <- n - sum(n_per_cluster)
+  if (remainder != 0) n_per_cluster[1] <- n_per_cluster[1] + remainder
+
+  list(
+    res_fpca      = res_fpca,
+    scores        = scores,
+    cluster_ids   = cluster_ids,
+    n_per_cluster = n_per_cluster
+  )
+}
+
+# .simulateDiagPlots ----------------------------------------------------------
+
+#' Diagnostic plot dashboard for SimulateSpectrum (internal)
+#'
+#' Renders a 2x2 diagnostic dashboard summarising the FPCA simulation results:
+#' \enumerate{
+#'   \item Variance scree plot with cumulative variance overlay.
+#'   \item KDE density zones in the FPCA latent space (real data).
+#'   \item Simulated scores projected onto the KDE background.
+#'   \item Reconstructed simulated spectra coloured by cluster.
+#' }
+#'
+#' @param res_fpca The fitted FPCA object returned by [fdapace::FPCA()].
+#' @param all_sim_scores Numeric matrix of simulated FPCA scores
+#'   (rows = simulated samples).
+#' @param simulated_matrix Numeric matrix of reconstructed simulated spectra
+#'   (rows = simulated samples, columns = m/z values).
+#' @param m_z Numeric vector of m/z indices.
+#' @param k Integer. Number of clusters.
+#' @param n_per_cluster Integer vector. Number of simulated samples per cluster.
+#'
+#' @return Called for its side effect (plots). Returns `NULL` invisibly.
+#'
+#' @keywords internal
+.simulateDiagPlots <- function(res_fpca, all_sim_scores, simulated_matrix,
+                               m_z, k, n_per_cluster) {
+
+  K_total     <- ncol(res_fpca$xiEst)
+  palette_sim <- rainbow(k)
+  color_idx   <- rep(seq_len(k), n_per_cluster)
+  strain_labels <- paste0("strain ", seq_len(k))
+
+  # Save and restore par on exit — guards against fdapace resetting par
+  old_par <- par(no.readonly = TRUE)
+  on.exit(par(old_par))
+  par(mfrow = c(2, 2), mar = c(4.5, 4.5, 2.5, 1.5))
+
+  # A. Variance scree plot
+  eigenvalues <- res_fpca$lambda
+  var_exp     <- (eigenvalues / sum(eigenvalues)) * 100
+  var_cum     <- cumsum(var_exp)
+
+  bp <- barplot(
+    var_exp,
+    names.arg = paste0("FPC", seq_len(K_total)),
+    col       = "steelblue",
+    border    = "white",
+    ylim      = c(0, 100),
+    main      = "Variance Explained per Component",
+    ylab      = "% Variance",
+    cex.names = 0.7
+  )
+  lines(x = bp, y = var_cum, type = "b", pch = 19, col = "red", lwd = 1.5)
+  text(x = bp, y = var_cum,
+       labels = paste0(round(var_cum, 0), "%"),
+       pos = 3, cex = 0.7, col = "red")
+
+  # B. Density zones (KDE) — real data only
+  # Snapshot par before fdapace call to restore mfrow/mar afterwards
+  par_before_b <- par(no.readonly = TRUE)
+  fdapace::CreateOutliersPlot(
+    res_fpca,
+    optns = list(fIndices = c(1, 2), variant = "KDE")
+  )
+  par(par_before_b)
+  title(main = "Density Zones (Latent Space)", cex.main = 0.9)
+
+  # C. Simulated scores projected onto KDE background --------------------------
+  # Step 1: draw KDE background (real data)
+  par_before_c <- par(no.readonly = TRUE)
+  fdapace::CreateOutliersPlot(
+    res_fpca,
+    optns = list(fIndices = c(1, 2), variant = "KDE")
+  )
+  par(par_before_c)
+
+  # Step 2: attenuate real data points by overlaying a semi-transparent white
+  # rectangle — this dims the real points without removing the KDE contours
+  usr <- par("usr")
+  rect(usr[1], usr[3], usr[2], usr[4],
+       col    = adjustcolor("white", alpha.f = 0.45),
+       border = NA)
+
+  # Step 3: overlay simulated points with high visibility
+  points(
+    all_sim_scores[, 1], all_sim_scores[, 2],
+    pch = 3,
+    col = adjustcolor(palette_sim[color_idx], alpha.f = 0.9),
+    cex = 1.0
+  )
+
+  title(main = "Projection of Simulated Spectra", cex.main = 0.9)
+
+  legend(
+    "topright",
+    legend = strain_labels,
+    col    = palette_sim,
+    pch    = 3,
+    pt.cex = 1.0,
+    cex    = 0.75,
+    bty    = "n",                          # no legend box border
+    title  = "Cluster"
+  )
+
+  # D. Reconstructed simulated spectra coloured by cluster ---------------------
+  plot(m_z, simulated_matrix[1, ], type = "n",
+       ylim = range(simulated_matrix),
+       main = "Reconstructed Simulated Spectra",
+       xlab = "m/z",
+       ylab = "Intensity")
+
+  for (i in seq_len(nrow(simulated_matrix))) {
+    lines(m_z, simulated_matrix[i, ],
+          col = adjustcolor(palette_sim[color_idx[i]], alpha.f = 0.3),
+          lwd = 0.5)
+  }
+
+  legend(
+    "topright",
+    legend = strain_labels,
+    col    = palette_sim,
+    lty    = 1,
+    lwd    = 1.5,
+    cex    = 0.75,
+    bty    = "n",
+    title  = "Cluster"
+  )
+
+  invisible(NULL)
 }
