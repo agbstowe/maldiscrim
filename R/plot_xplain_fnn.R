@@ -64,15 +64,16 @@ plotGradCamFNN <- function(object, classIndex, sampleIndex = 1, ...) {
   tf    <- .tf()
   keras <- .keras()
 
-  fnnModel      <- .loadFNNModel(object$modelPath)
-  data_list     <- .loadFeaturesFromCSV(object)
-  features      <- data_list$features
+  fnnModel  <- .loadFNNModel(object$modelPath)
+  data_list <- .loadFeaturesFromCSV(object)
+  features  <- data_list$features
 
   py_sample_idx <- as.integer(sampleIndex - 1L)
+  py_class_idx  <- as.integer(classIndex  - 1L)
   sample_tensor <- tf$expand_dims(features[py_sample_idx], 0L)
 
   # Locate the last FunctionalConvolution layer
-  layers_list    <- fnnModel$layers
+  layers_list     <- fnnModel$layers
   conv_layer_name <- NULL
   for (i in rev(seq_along(layers_list))) {
     if (grepl("FunctionalConvolution", layers_list[[i]]$name)) {
@@ -86,20 +87,22 @@ plotGradCamFNN <- function(object, classIndex, sampleIndex = 1, ...) {
 
   conv_layer <- fnnModel$get_layer(conv_layer_name)
 
-  with(tf$GradientTape() %as% tape, {
-    grad_model <- keras$models$Model(
-      inputs  = fnnModel$input,
-      outputs = list(conv_layer$output, fnnModel$output)
-    )
+  grad_model <- keras$models$Model(
+    inputs  = fnnModel$input,
+    outputs = reticulate::tuple(conv_layer$output, fnnModel$output)
+  )
+
+  # GradientTape via reticulate::with — replaces the broken %as% syntax
+  tape <- tf$GradientTape()
+  reticulate::with(tape, {
     res         <- grad_model(sample_tensor)
     conv_outs   <- res[[1]]
     predictions <- res[[2]]
-    py_class_idx <- as.integer(classIndex - 1L)
-    loss_value   <- predictions[0L, py_class_idx]
+    loss_value  <- predictions[0L, py_class_idx]
   })
 
   grads        <- tape$gradient(loss_value, conv_outs)
-  pooled_grads <- tf$reduce_mean(grads, axis = list(0L, 1L))
+  pooled_grads <- tf$reduce_mean(grads, axis = reticulate::tuple(0L, 1L))
 
   c_outs  <- reticulate::py_to_r(conv_outs[0L])
   p_grads <- reticulate::py_to_r(pooled_grads)
@@ -172,36 +175,41 @@ plotOcclusionFNN <- function(object, classIndex, sampleIndex = 1,
   features   <- data_list$features
   n_features <- data_list$nFeatures
 
-  py_sample_idx  <- as.integer(sampleIndex - 1L)
-  py_class_idx   <- as.integer(classIndex  - 1L)
-  sample_tensor  <- tf$expand_dims(features[py_sample_idx], 0L)
+  py_sample_idx <- as.integer(sampleIndex - 1L)
+  py_class_idx  <- as.integer(classIndex  - 1L)
 
-  baseline_preds <- fnnModel$predict(sample_tensor, verbose = 0L)
-  baseline_prob  <- reticulate::py_to_r(baseline_preds[0L, py_class_idx])
-
-  steps         <- seq(1, n_features, by = as.integer(windowSize))
+  # Extract the sample as an R matrix BEFORE creating any tensor
+  # — TF tensors are immutable, R matrices are not
   sample_matrix <- reticulate::py_to_r(features[py_sample_idx])
 
-  importance_scores <- vapply(seq_along(steps), function(i) {
-    start_pos <- steps[i]
-    end_pos   <- min(start_pos + windowSize - 1L, n_features)
+  baseline_tensor <- tf$expand_dims(
+    tf$constant(sample_matrix, dtype = tf$float32), 0L
+  )
+  baseline_preds <- fnnModel$predict(baseline_tensor, verbose = 0L)
+  baseline_prob  <- reticulate::py_to_r(baseline_preds)[1L, py_class_idx + 1L]
 
-    masked_sample <- sample_matrix
-    masked_sample[start_pos:end_pos, 1] <- 0
+  window_starts <- seq(1L, n_features, by = as.integer(windowSize))
+
+  importance_scores <- vapply(window_starts, function(start_pos) {
+    end_pos <- min(start_pos + windowSize - 1L, n_features)
+
+    # Mask on the R matrix — safe, no TF item assignment
+    masked_matrix <- sample_matrix
+    masked_matrix[start_pos:end_pos, 1L] <- 0
 
     masked_tensor <- tf$expand_dims(
-      tf$constant(masked_sample, dtype = tf$float32), 0L
+      tf$constant(masked_matrix, dtype = tf$float32), 0L
     )
     masked_preds <- fnnModel$predict(masked_tensor, verbose = 0L)
-    masked_prob  <- reticulate::py_to_r(masked_preds[0L, py_class_idx])
+    masked_prob  <- reticulate::py_to_r(masked_preds)[1L, py_class_idx + 1L]
 
     max(0, baseline_prob - masked_prob)
   }, numeric(1))
 
   # Expand window scores back to full feature resolution
   full_importance <- numeric(n_features)
-  for (i in seq_along(steps)) {
-    start_pos <- steps[i]
+  for (i in seq_along(window_starts)) {
+    start_pos <- window_starts[i]
     end_pos   <- min(start_pos + windowSize - 1L, n_features)
     full_importance[start_pos:end_pos] <- importance_scores[i]
   }
@@ -211,7 +219,7 @@ plotOcclusionFNN <- function(object, classIndex, sampleIndex = 1,
 
   df_plot <- data.frame(
     Index      = seq_len(n_features),
-    Intensity  = sample_matrix[, 1],
+    Intensity  = sample_matrix[, 1L],
     Importance = full_importance
   )
 
@@ -253,6 +261,8 @@ plotActivationFNN <- function(object, sampleIndex = 1, ...) {
 
   .checkPythonEnv()
 
+  # Bug fix: tf was missing — keras alone was not sufficient
+  tf    <- .tf()
   keras <- .keras()
 
   fnnModel  <- .loadFNNModel(object$modelPath)
@@ -274,7 +284,7 @@ plotActivationFNN <- function(object, sampleIndex = 1, ...) {
     stop("No functional convolutional layer found in model structure.")
   }
 
-  sub_model          <- keras$models$Model(
+  sub_model <- keras$models$Model(
     inputs  = fnnModel$input,
     outputs = fnnModel$get_layer(first_conv_name)$output
   )
@@ -328,13 +338,17 @@ plotActivationMaxFNN <- function(object, classIndex, steps = 50, ...) {
 
   # Initialise pseudo-spectrum from uniform random noise bounded to [0, 0.1]
   input_data <- tf$Variable(
-    tf$random$uniform(shape = list(1L, n_features, 1L),
-                      minval = 0.0, maxval = 0.1)
+    tf$random$uniform(
+      shape   = reticulate::tuple(1L, n_features, 1L),
+      minval  = 0.0,
+      maxval  = 0.1
+    )
   )
 
-  # Gradient ascent optimisation loop
+  # Gradient ascent — reticulate::with replaces broken %as% syntax
   for (step in seq_len(steps)) {
-    with(tf$GradientTape() %as% tape, {
+    tape <- tf$GradientTape()
+    reticulate::with(tape, {
       tape$watch(input_data)
       predictions <- fnnModel(input_data)
       loss_value  <- predictions[0L, py_class_idx]
@@ -346,7 +360,7 @@ plotActivationMaxFNN <- function(object, classIndex, steps = 50, ...) {
     input_data$assign(tf$clip_by_value(input_data, 0.0, 1.0))
   }
 
-  optimized_spectrum <- reticulate::py_to_r(input_data[0L, , 1])
+  optimized_spectrum <- reticulate::py_to_r(input_data)[1L, , 1L]
 
   df_plot <- data.frame(
     Index     = seq_along(optimized_spectrum),
@@ -360,10 +374,12 @@ plotActivationMaxFNN <- function(object, classIndex, steps = 50, ...) {
     ggplot2::theme_minimal() +
     ggplot2::labs(
       title    = "Class Activation Maximization Profile",
-      subtitle = sprintf("Synthesized Idealized Spectrum for Target Class: %s",
-                         target_class_name),
-      x        = "Spectral Coordinate Index (m/z)",
-      y        = "Optimized Feature Amplitude"
+      subtitle = sprintf(
+        "Synthesized Idealized Spectrum for Target Class: %s",
+        target_class_name
+      ),
+      x = "Spectral Coordinate Index (m/z)",
+      y = "Optimized Feature Amplitude"
     )
 
   return(p)

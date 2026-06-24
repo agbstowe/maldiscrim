@@ -43,3 +43,39 @@
 #' and the internal LDA model components.
 #' @source Precomputed from the internal \code{spectra100} dataset.
 "fpls_model"
+
+
+#' Pre-trained Functional Neural Network model
+#'
+#' @description
+#' A pre-trained \code{FNN} model object fitted on the \code{spectra100} dataset using \code{fitFNN}.
+#' Provided to avoid re-running the full training pipeline during examples, vignettes, and unit tests.
+#'
+#' @format An object of class \code{"FNN"}, a named list with 17 elements:
+#' \describe{
+#'   \item{modelPath}{Path to the stored Keras model file (.h5).}
+#'   \item{dataPath}{Path to the input CSV file used during training.}
+#'   \item{history}{List of 4 training metric vectors: \code{loss}, \code{val_loss}, \code{accuracy}, \code{val_accuracy}.}
+#'   \item{nParams}{Integer. Total number of trainable parameters.}
+#'   \item{labels}{Factor. Group membership for each training sample.}
+#'   \item{classNames}{Character vector of class names.}
+#'   \item{nClass}{Integer. Number of distinct classes.}
+#'   \item{nSample}{Integer. Total number of training samples.}
+#'   \item{trainSize}{Numeric. Proportion of data used for training.}
+#'   \item{batchSize}{Integer. Mini-batch size used during training.}
+#'   \item{nbEpochs}{Integer. Maximum number of training epochs.}
+#'   \item{patience}{Integer. Early stopping patience.}
+#'   \item{monitor}{Character. Metric monitored for early stopping.}
+#'   \item{firstLayer}{List. Configuration of the first network layer.}
+#'   \item{secondLayer}{List. Configuration of the second network layer.}
+#'   \item{finalLayer}{List. Configuration of the final classification layer.}
+#'   \item{outputPath}{NULL (resolved at install time).}
+#' }
+#'
+#' @seealso \code{\link{fitFNN}}, \code{\link{predict.FNN}}, \code{\link{summary.FNN}}
+#'
+#' @examples
+#' data("fnn_model")
+#' summary(fnn_model)
+#' plotTrainingFNN(fnn_model)
+"fnn_model"
