@@ -183,11 +183,89 @@ print(s$confusion)
 
 For complex discrimination tasks, `maldiscrim` provides a Functional Neural Network (FNN) pipeline implemented in Python via `reticulate` and TensorFlow. The FNN captures non-linear spectral relationships that linear methods such as FPLS-DA may miss.
 
-Training a FNN model is computationally intensive (approximately one hour on standard hardware). For demonstration purposes, this vignette loads a pre-trained model object directly from the package cache.
+#### 7.1 Training the FNN (`fitFNN`)
+
+Training a FNN model is computationally intensive. For demonstration purposes, this vignette loads a pre-trained model object directly from the package cache.
 
 ```{r load-fnn, message = FALSE, warning = FALSE}
 data("fnn_model")
 ```
+
+`fitFNN` trains the Functional Neural Network on a preprocessed spectral
+matrix. The function handles Python environment setup, data formatting, model
+compilation, and early stopping automatically.
+
+```{r fnn-train, eval = FALSE}
+# Full training example — not executed in this vignette (~1 hour)
+# fnn_model_trained <- fitFNN(
+#   data = spectra100,
+#   trainSize = 0.8,
+#   batchSize = 32L,
+#   nbEpochs = 50L,
+#   stepsPerEpoch = 16L,
+#   patience = 5L,
+#   monitor = "val_loss",
+#   firstLayer = list(nFilters = 50L, nFunctions = 100L, resolution = 500L, basisType =
+#     "Fourier", activation = "elu"),
+#   secondLayer = list(nFilters = 5L, nFunctions = 70L, resolution = 200L, basisType =
+#     "Fourier", activation = "elu"),
+#   finalLayer = list(nFunctions = 50L, resolution = 19966L, basisType = "Fourier",
+#     activation = "softmax", pooling = TRUE),
+#   outputPath = "outputs/fnn",
+#   verbose = TRUE
+# )
+```
+
+#### 7.2 Network Architecture (`architectureFNN`)
+
+Before training, `architectureFNN` allows the user to inspect and configure
+the network layout — number of filters, kernel sizes, pooling sizes, and dense
+units across the three main blocks (two functional convolutional blocks and a
+final classification head). Calling it without arguments displays the default
+configuration.
+
+```{r fnn-architecture, eval = FALSE}
+# Display and inspect the default FNN architecture
+architectureFNN(fnn_model)
+```
+#### 7.3 Model Summary (`summary.FNN`)
+
+`summary()` prints a structured report of the FNN configuration and in-sample
+classification performance, following the same interface as `summary.FPLS_DA`.
+
+```{r fnn-summary, message = FALSE, warning = FALSE}
+s_fnn <- summary(fnn_model)
+```
+
+```{r fnn-summary-access, message = FALSE, warning = FALSE}
+# Overall accuracy
+cat(sprintf("FNN overall in-sample accuracy : %.1f%%\n", s_fnn$accuracy * 100))
+
+# Per-group recall
+print(s_fnn$recall)
+
+# Full confusion matrix
+print(s_fnn$confusion)
+```
+
+
+#### 7.4 Prediction 
+
+`predict.FNN` projects new spectral data through the trained network and
+returns the predicted class and the associated maximum posterior probability
+for each sample. The optional `threshold` argument flags low-confidence
+predictions as `"Doubty"`.
+
+```{r fnn-predict, message = FALSE, warning = FALSE}
+# Predict on training data (fitted values)
+pred_fnn <- predict(fnn_model)
+
+# First predicted classes
+head(pred_fnn$class)
+
+```
+
+#### 7.5 Diagnostic Plots
 
 **Training History (`plotTrainingFNN`)**
 
@@ -214,9 +292,7 @@ plotUMAPFNN(fnn_model, on = "logits",  seed = 42)
 plotUMAPFNN(fnn_model, on = "softmax", seed = 42)
 ```
 
-```{r fnn-mds, message = FALSE, warning = FALSE}
-plotMDSFNN(fnn_model, on = "logits", seed = 42)
-```
+#### 7.6 Interpretability
 
 **Interpretability: Grad-CAM Attribution (`plotGradCamFNN`)**
 

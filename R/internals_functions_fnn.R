@@ -580,3 +580,25 @@
     nFeatures = nFeatures
   )
 }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# .resolveFNNPaths
+# ══════════════════════════════════════════════════════════════════════════════
+
+#' Resolve package-relative paths in an FNN object (internal)
+#'
+#' @keywords internal
+.resolveFNNPaths <- function(object) {
+  resolve <- function(path) {
+    if (!is.null(path) && startsWith(path, ":package:")) {
+      relative <- sub("^:package:", "", path)
+      system.file(relative, package = "maldiscrim")
+    } else {
+      path
+    }
+  }
+  object$modelPath <- resolve(object$modelPath)
+  object$dataPath  <- resolve(object$dataPath)
+  object
+}

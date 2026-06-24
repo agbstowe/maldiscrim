@@ -49,6 +49,8 @@ plotTrainingFNN <- function(object, ...) {
 
   if (!inherits(object, "FNN")) stop("'object' must be a fitted FNN model.")
 
+  object <- .resolveFNNPaths(object)
+
   history <- object$history
   if (is.null(history)) stop("No training history found in the FNN object.")
 
@@ -95,14 +97,17 @@ plotConfusionFNN <- function(object, ...) {
 
   if (!inherits(object, "FNN")) stop("'object' must be a fitted FNN model.")
 
+  object <- .resolveFNNPaths(object)
+
   pred        <- predict.FNN(object, newdata = NULL)
   true_labels <- as.character(object$labels)
   # confusion   <- table(Predicted = pred$class, Actual = true_labels)
-  confusion   <- caret::confusionMatrix(as.factor(pred$class), as.factor(true_labels))
+  cf          <- caret::confusionMatrix(as.factor(pred$class), as.factor(true_labels))
+  confusion   <- cf$table
   df_conf     <- as.data.frame(as.table(confusion))
 
   p <- ggplot2::ggplot(df_conf,
-                       ggplot2::aes(x = Predicted, y = Actual, fill = Freq)) +
+                       ggplot2::aes(x = Prediction, y = Reference, fill = Freq)) +
     ggplot2::geom_tile(color = "white") +
     ggplot2::geom_text(ggplot2::aes(label = Freq), color = "black", size = 4) +
     ggplot2::scale_fill_gradient(low = "#E3F2FD", high = "#1565C0") +
@@ -129,6 +134,8 @@ plotUMAPFNN <- function(object, on = c("logits", "softmax"),
 
   if (!inherits(object, "FNN")) stop("'object' must be a fitted FNN model.")
   on <- match.arg(on)
+
+  object <- .resolveFNNPaths(object)
 
   .checkPythonEnv()
 
@@ -176,6 +183,8 @@ plotUMAPFNN <- function(object, on = c("logits", "softmax"),
 #'
 #'   if (!inherits(object, "FNN")) stop("'object' must be a fitted FNN model.")
 #'   on <- match.arg(on)
+#'
+#'   object <- .resolveFNNPaths(object)
 #'
 #'   .checkPythonEnv()
 #'

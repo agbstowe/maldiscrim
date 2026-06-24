@@ -35,24 +35,5 @@
 #   }
 
 
-  tryCatch({
-    env <- asNamespace(pkgname)
-    if (exists("fnn_model", envir = env)) {
-      obj <- get("fnn_model", envir = env)
-      resolve <- function(path) {
-        if (!is.null(path) && startsWith(path, ":package:")) {
-          relative <- sub("^:package:", "", path)
-          system.file(relative, package = pkgname)
-        } else {
-          path
-        }
-      }
-      obj$modelPath <- resolve(obj$modelPath)
-      obj$dataPath  <- resolve(obj$dataPath)
-      assign("fnn_model", obj, envir = env)
-    }
-  }, error = function(e) NULL)
-
-
  }
 

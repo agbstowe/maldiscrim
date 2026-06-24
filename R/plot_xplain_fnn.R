@@ -59,6 +59,8 @@ plotGradCamFNN <- function(object, classIndex, sampleIndex = 1, ...) {
   if (!inherits(object, "FNN")) stop("'object' must be a fitted FNN model.")
   if (missing(classIndex))      stop("'classIndex' must be specified.")
 
+  object <- .resolveFNNPaths(object)
+
   .checkPythonEnv()
 
   tf    <- .tf()
@@ -166,6 +168,8 @@ plotOcclusionFNN <- function(object, classIndex, sampleIndex = 1,
   if (!inherits(object, "FNN")) stop("'object' must be a fitted FNN model.")
   if (missing(classIndex))      stop("'classIndex' must be specified.")
 
+  object <- .resolveFNNPaths(object)
+
   .checkPythonEnv()
 
   tf <- .tf()
@@ -259,6 +263,8 @@ plotActivationFNN <- function(object, sampleIndex = 1, ...) {
 
   if (!inherits(object, "FNN")) stop("'object' must be a fitted FNN model.")
 
+  object <- .resolveFNNPaths(object)
+
   .checkPythonEnv()
 
   # Bug fix: tf was missing — keras alone was not sufficient
@@ -326,6 +332,8 @@ plotActivationMaxFNN <- function(object, classIndex, steps = 50, ...) {
 
   if (!inherits(object, "FNN")) stop("'object' must be a fitted FNN model.")
   if (missing(classIndex))      stop("'classIndex' must be specified.")
+
+  object <- .resolveFNNPaths(object)
 
   .checkPythonEnv()
 

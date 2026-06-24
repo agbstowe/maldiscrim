@@ -259,6 +259,8 @@ predict.FNN <- function(object, newdata = NULL, threshold = NULL, ...) {
     stop("'threshold' must be a single numeric value between 0 and 1.")
   }
 
+  object <- .resolveFNNPaths(object)
+
   # Python environment check
   .checkPythonEnv()
 
@@ -358,11 +360,14 @@ predict.FNN <- function(object, newdata = NULL, threshold = NULL, ...) {
 #' @export
 summary.FNN <- function(object, ...) {
 
+  object <- .resolveFNNPaths(object)
+
   # In-sample predictions
   pred        <- predict.FNN(object, newdata = NULL)
   true_labels <- as.character(object$labels)
   # confusion   <- table(Predicted = pred$class, Actual = true_labels)
-  confusion   <- caret::confusionMatrix(as.factor(pred$class), as.factor(true_labels))
+  cf          <- caret::confusionMatrix(as.factor(pred$class), as.factor(true_labels))
+  confusion   <- cf$table
   accuracy    <- sum(diag(confusion)) / sum(confusion)
 
   # Per-group recall
@@ -477,6 +482,8 @@ architectureFNN <- function(object) {
   if (!inherits(object, "FNN")) {
     stop("'object' must be a fitted FNN model.")
   }
+
+  object <- .resolveFNNPaths(object)
 
   .checkPythonEnv()
 
