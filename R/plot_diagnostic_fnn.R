@@ -97,7 +97,8 @@ plotConfusionFNN <- function(object, ...) {
 
   pred        <- predict.FNN(object, newdata = NULL)
   true_labels <- as.character(object$labels)
-  confusion   <- table(Predicted = pred$class, Actual = true_labels)
+  # confusion   <- table(Predicted = pred$class, Actual = true_labels)
+  confusion   <- caret::confusionMatrix(as.factor(pred$class), as.factor(true_labels))
   df_conf     <- as.data.frame(as.table(confusion))
 
   p <- ggplot2::ggplot(df_conf,
@@ -166,46 +167,46 @@ plotUMAPFNN <- function(object, on = c("logits", "softmax"),
 
 # plotMDSFNN ------------------------------------------------------------------
 
-#' @rdname plotDiagnosticsFNN
-#' @importFrom ggplot2 ggplot aes geom_point stat_ellipse scale_color_manual
-#'   theme_minimal labs
-#' @export
-plotMDSFNN <- function(object, on = c("logits", "softmax"),
-                       palette = NULL, seed = 42, ...) {
-
-  if (!inherits(object, "FNN")) stop("'object' must be a fitted FNN model.")
-  on <- match.arg(on)
-
-  .checkPythonEnv()
-
-  features_space   <- .extractNetworkSpace(object, on = on)
-
-  sklearn_manifold <- reticulate::import("sklearn.manifold", convert = FALSE)
-  reducer          <- sklearn_manifold$MDS(random_state = as.integer(seed))
-  mds_coords       <- reticulate::py_to_r(reducer$fit_transform(features_space))
-
-  df_proj <- data.frame(
-    MDS1  = mds_coords[, 1],
-    MDS2  = mds_coords[, 2],
-    label = as.factor(object$labels)
-  )
-
-  n_groups <- nlevels(df_proj$label)
-  pal      <- .getPalette(n_groups, palette)
-
-  p <- ggplot2::ggplot(df_proj,
-                       ggplot2::aes(x = MDS1, y = MDS2, color = label)) +
-    ggplot2::geom_point(alpha = 0.8, size = 2.5) +
-    ggplot2::stat_ellipse(type = "t", level = 0.95, linetype = 2,
-                          alpha = 0.5) +
-    ggplot2::scale_color_manual(values = pal) +
-    ggplot2::theme_minimal() +
-    ggplot2::labs(
-      title = sprintf("MDS Projection on FNN %s", toupper(on)),
-      x     = "MDS Dimension 1",
-      y     = "MDS Dimension 2",
-      color = "Strains"
-    )
-
-  return(p)
-}
+#' #' @rdname plotDiagnosticsFNN
+#' #' @importFrom ggplot2 ggplot aes geom_point stat_ellipse scale_color_manual
+#' #'   theme_minimal labs
+#' #' @export
+#' plotMDSFNN <- function(object, on = c("logits", "softmax"),
+#'                        palette = NULL, seed = 42, ...) {
+#'
+#'   if (!inherits(object, "FNN")) stop("'object' must be a fitted FNN model.")
+#'   on <- match.arg(on)
+#'
+#'   .checkPythonEnv()
+#'
+#'   features_space   <- .extractNetworkSpace(object, on = on)
+#'
+#'   sklearn_manifold <- reticulate::import("sklearn.manifold", convert = FALSE)
+#'   reducer          <- sklearn_manifold$MDS(random_state = as.integer(seed))
+#'   mds_coords       <- reticulate::py_to_r(reducer$fit_transform(features_space))
+#'
+#'   df_proj <- data.frame(
+#'     MDS1  = mds_coords[, 1],
+#'     MDS2  = mds_coords[, 2],
+#'     label = as.factor(object$labels)
+#'   )
+#'
+#'   n_groups <- nlevels(df_proj$label)
+#'   pal      <- .getPalette(n_groups, palette)
+#'
+#'   p <- ggplot2::ggplot(df_proj,
+#'                        ggplot2::aes(x = MDS1, y = MDS2, color = label)) +
+#'     ggplot2::geom_point(alpha = 0.8, size = 2.5) +
+#'     ggplot2::stat_ellipse(type = "t", level = 0.95, linetype = 2,
+#'                           alpha = 0.5) +
+#'     ggplot2::scale_color_manual(values = pal) +
+#'     ggplot2::theme_minimal() +
+#'     ggplot2::labs(
+#'       title = sprintf("MDS Projection on FNN %s", toupper(on)),
+#'       x     = "MDS Dimension 1",
+#'       y     = "MDS Dimension 2",
+#'       color = "Strains"
+#'     )
+#'
+#'   return(p)
+#' }

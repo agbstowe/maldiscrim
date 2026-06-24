@@ -115,6 +115,28 @@ fitFNN <- function(data, trainSize  = 0.8, batchSize  = 32L, nbEpochs  = 50L, st
   if (!is.character(outputPath) || length(outputPath) != 1 || nchar(outputPath) == 0) {
     stop("'outputPath' must be a single non-empty character string.")
   }
+  if (!is.numeric(batchSize) || length(batchSize) != 1 ||
+      batchSize < 1 || batchSize != round(batchSize))
+    stop("'batchSize' must be a single positive integer.")
+
+  if (!is.numeric(stepsPerEpoch) || length(stepsPerEpoch) != 1 ||
+      stepsPerEpoch < 1 || stepsPerEpoch != round(stepsPerEpoch))
+    stop("'stepsPerEpoch' must be a single positive integer.")
+
+  # convert value as integer for python use
+  batchSize     <- as.integer(batchSize)
+  nbEpochs      <- as.integer(nbEpochs)
+  stepsPerEpoch <- as.integer(stepsPerEpoch)
+  patience      <- as.integer(patience)
+
+  firstLayer$nFilters    <- as.integer(firstLayer$nFilters)
+  firstLayer$nFunctions  <- as.integer(firstLayer$nFunctions)
+  firstLayer$resolution  <- as.integer(firstLayer$resolution)
+  secondLayer$nFilters   <- as.integer(secondLayer$nFilters)
+  secondLayer$nFunctions <- as.integer(secondLayer$nFunctions)
+  secondLayer$resolution <- as.integer(secondLayer$resolution)
+  finalLayer$nFunctions  <- as.integer(finalLayer$nFunctions)
+  finalLayer$resolution  <- as.integer(finalLayer$resolution)
 
   # Layer parameter validation
   .validateLayerOptions(firstLayer,  c("nFilters", "nFunctions", "resolution", "basisType", "activation"), "firstLayer")
@@ -339,7 +361,8 @@ summary.FNN <- function(object, ...) {
   # In-sample predictions
   pred        <- predict.FNN(object, newdata = NULL)
   true_labels <- as.character(object$labels)
-  confusion   <- table(Predicted = pred$class, Actual = true_labels)
+  # confusion   <- table(Predicted = pred$class, Actual = true_labels)
+  confusion   <- caret::confusionMatrix(as.factor(pred$class), as.factor(true_labels))
   accuracy    <- sum(diag(confusion)) / sum(confusion)
 
   # Per-group recall

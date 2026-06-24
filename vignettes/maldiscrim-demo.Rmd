@@ -106,7 +106,8 @@ Three clustering methods are available via `clust_method`: K-means (default), hi
 
 Setting `plot = TRUE` automatically outputs a $2 \times 2$ diagnostic dashboard.
 
-```{r simulate-spectra, message = FALSE, warning = FALSE}
+```{r simulate-spectra, message = FALSE, warning = FALSE, fig.width  = 10, fig.height = 6, out.width  = "100%", fig.align  = "center"}
+
 # Simulate 40 new spectra across 3 latent clusters with diagnostic plots enabled
 simulated_spectra <- SimulateSpectrum(data = spectra100, n = 60, k = 3, 
                                       clust_method = "kmeans", factorNoise = 1, plot = TRUE)

@@ -5,7 +5,6 @@
 \alias{plotTrainingFNN}
 \alias{plotConfusionFNN}
 \alias{plotUMAPFNN}
-\alias{plotMDSFNN}
 \title{Diagnostic visualization functions for FNN outputs}
 \usage{
 plotTrainingFNN(object, ...)
@@ -19,8 +18,6 @@ plotUMAPFNN(
   seed = 42,
   ...
 )
-
-plotMDSFNN(object, on = c("logits", "softmax"), palette = NULL, seed = 42, ...)
 }
 \arguments{
 \item{object}{A fitted model object of class inheriting from \code{"FNN"}.}
