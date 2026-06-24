@@ -21,5 +21,15 @@
   if (dir.exists(venvPath)) {
     reticulate::use_virtualenv(venvPath, required = FALSE)
   }
+
+  # Solve FNN pre-training model paths
+  fnn_env <- tryCatch(
+    get("fnn_model", envir = asNamespace(pkgname)),
+    error = function(e) NULL
+  )
+  if (!is.null(fnn_env)) {
+    fnn_env$modelPath <- system.file(fnn_env$modelPath, package = pkgname)
+    fnn_env$dataPath  <- system.file(fnn_env$dataPath,  package = pkgname)
+  }
 }
 
