@@ -316,6 +316,42 @@
   )
 }
 
+
+# .reconstructSpectrum --------------------------------------------------------
+
+#' Reconstruct a single spectrum via Karhunen-Loève expansion (internal)
+#'
+#' Reconstructs a spectrum from a vector of FPCA scores using the
+#' Karhunen-Loève expansion:
+#' \deqn{X(t) = \mu(t) + \sum_{k=1}^{K} \xi_k \phi_k(t)}
+#' The reconstructed curve is bounded to non-negative intensities and
+#' interpolated onto the original m/z grid.
+#'
+#' @param s Numeric vector of FPCA scores for one sample.
+#' @param mu Numeric vector. Estimated mean function on the FPCA working grid.
+#' @param phi Numeric matrix. Eigenfunctions (columns = components) on the
+#'   FPCA working grid.
+#' @param targetGrid Numeric vector. The original m/z indices onto which the
+#'   reconstructed spectrum is interpolated.
+#' @param currentGrid Numeric vector. The FPCA working grid (`res_fpca$workGrid`).
+#'
+#' @return A numeric vector of reconstructed spectral intensities on
+#'   `targetGrid`.
+#'
+#' @keywords internal
+.reconstructSpectrum <- function(s, mu, phi, targetGrid, currentGrid) {
+
+  # Karhunen-Loève: mu + sum_k(score_k * phi_k)
+  y_grid <- as.vector(mu + (phi %*% s))
+
+  # Physical bounding: force non-negative intensities
+  y_grid <- pmax(y_grid, 0)
+
+  # Interpolate back onto the original m/z grid
+  approx(x = currentGrid, y = y_grid, xout = targetGrid)$y
+}
+
+
 # .simulateDiagPlots ----------------------------------------------------------
 
 #' Diagnostic plot dashboard for SimulateSpectrum (internal)
