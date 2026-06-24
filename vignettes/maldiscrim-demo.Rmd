@@ -10,7 +10,11 @@ vignette: >
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment = "#>"
+  comment = "#>",
+  fig.width  = 10,
+  fig.height = 6,
+  out.width  = "100%",
+  fig.align  = "center"
 )
 ```
 
@@ -34,11 +38,11 @@ The `ProcessMALDI` function imports raw spectra files from a target directory. I
 
 Technical replicates are aligned and averaged into a single **biological replicate** (Mean Spectrum Profile, or MSP) by combining the sample's full name and its acquisition month. The output is a clean matrix of continuous profiles.
 
-```{r}
+```{r load-package}
 library(maldiscrim)
 ```
 
-```{r, eval = FALSE}
+```{r process-maldi, eval = FALSE}
 # Example of importing and preprocessing raw spectra files
 # Each row represents a biological replicate (MSP) interpolated across 20,664 m/z points
 data_path    <- "path/to/your/strains_directory"
@@ -47,7 +51,7 @@ raw_processed <- ProcessMALDI(dataFile = data_path, methodBaseline = "SNIP", hal
 
 For the remainder of this vignette, we will use the package's built-in reference dataset.
 
-```{r }
+```{r load-data}
 data("spectra100")
 
 # 100 biological replicates x 20,664 m/z channels
@@ -57,11 +61,12 @@ dim(spectra100)
 ---
 
 ### 2. Training the Classification Model (fitFPLS_DA)
+
 The fitFPLS_DA function fits a supervised classifier tailored for functional data. It projects the continuous signal onto a functional basis (B-splines or Wavelets) and extracts expansion coefficients to train a multivariate Partial Least Squares (PLS) regression.
 
 The optimal number of PLS components is automatically selected via cross-validation using the One-Sigma rule. Finally, a Linear Discriminant Analysis model (MASS::lda) is fitted on the PLS scores, which are filtered beforehand to remove columns with zero variance.
 
-```{r }
+```{r fit-model, message = FALSE, warning = FALSE}
 # Fitting the FPLS-DA model using a B-splines functional decomposition
 fit_model <- fitFPLS_DA(data = spectra100, method = "bsplines", nbasis = 1050)
 
@@ -73,9 +78,10 @@ fit_model$ncompOpt
 ---
 
 ### 3. Evaluation and Prediction (predict.FPLS_DA)
+
 The prediction method maps new spectral matrices onto the functional basis and the PLS space defined during training, computing posterior group probabilities via the LDA component. The threshold argument allows users to flag ambiguous spectra under a "Doubty" classification tag.
 
-```{r , message=FALSE, warning=FALSE, fig.width=12, fig.height=8, out.width="100%", fig.align="center"}
+```{r predict-model, message = FALSE, warning = FALSE}
 # Prediction on the training data
 predictions <- predict(object = fit_model, newdata = spectra100 )
 # predictions <- predict.FPLS_DA(object = fit_model, newdata = spectra100 )
@@ -93,20 +99,26 @@ table(predictions$class , rownames(spectra100))
 ---
 
 ### 4. Simulating Functional Spectral Profiles (SimulateSpectrum)
-To evaluate classifier stability under realistic conditions, SimulateSpectrum performs a Functional Principal Component Analysis (FPCA) selected via the AIC criterion. A K-means clustering step partitions the latent space, and a resampling engine generates $n$ new continuous spectra using the Karhunen-Loeve expansion combined with an adaptive noise structure. Physical non-negativity constraints are enforced via a pmax(y, 0) rectification step.Setting plot = TRUE automatically outputs a $2 \times 2$ diagnostic dashboard:
 
-```{r , message=FALSE, warning=FALSE, fig.width=12, fig.height=8, out.width="100%", fig.align="center"}
+To evaluate classifier stability under realistic conditions, SimulateSpectrum performs a Functional Principal Component Analysis (FPCA) selected via the AIC criterion. A K-means clustering step partitions the latent space, and a resampling engine generates $n$ new continuous spectra using the Karhunen-Loeve expansion combined with an adaptive noise structure. Physical non-negativity constraints are enforced via a pmax(y, 0) rectification step.
+
+Three clustering methods are available via `clust_method`: K-means (default), hierarchical clustering (`"hclust"`), and Gaussian Mixture Models (`"gmm"`).
+
+Setting `plot = TRUE` automatically outputs a $2 \times 2$ diagnostic dashboard.
+
+```{r simulate-spectra, message = FALSE, warning = FALSE}
 # Simulate 40 new spectra across 3 latent clusters with diagnostic plots enabled
-simulated_spectra <- SimulateSpectrum(data = spectra100, n = 60, k = 3, factorNoise = 1, plot = TRUE)
+simulated_spectra <- SimulateSpectrum(data = spectra100, n = 60, k = 3, 
+                                      clust_method = "kmeans", factorNoise = 1, plot = TRUE)
 ```
 
 ---
 
 ### 5. Visualizing Discriminant Latent Spaces
+
 The package includes advanced graphic functions to inspect microbial strain segregation within the projection subspaces.2D Score Projections with Class Probabilities (plotSpectra2D)This function displays the score map along the first two PLS dimensions. Enabling show_proba = TRUE applies strict discrete opacity tiers ($1.0, 0.6,$ or $0.2$) based on the maximum posterior LDA probability, helping users visually isolate taxonomic uncertainty zones.
 
-```{r , message=FALSE, warning=FALSE, fig.width=12, fig.height=8, out.width="100%", fig.align="center"}
-# par(mfrow = c(1,2))
+```{r plot-2d, message = FALSE, warning = FALSE}
 
 plotSpectra2D(fit_model, comp = c(1, 2), show_proba = TRUE , palette = NULL)
 plotSpectra2D(fit_model, comp = c(1, 2), show_proba = FALSE, palette = NULL)
@@ -116,7 +128,7 @@ plotSpectra2D(fit_model, comp = c(1, 2), show_proba = FALSE, palette = NULL)
 **Interactive 3D Scores Cloud (plotSpectra3D)**
 To analyze complex cluster sub-structures, plotSpectra3D builds an interactive 3D scatter plot using plotly. Axes automatically integrate individual explained variance percentages, and plotting ranges expand by 10% to prevent marker edge truncation.
 
-```{r , message=FALSE, warning=FALSE, fig.width=12, fig.height=8, out.width="100%", fig.align="center"}
+```{r plot-3d, message = FALSE, warning = FALSE}
 # Generates an interactive 3D plot (supporting zoom and rotation)
 plotSpectra3D(fit_model, comp = c(1, 2, 3), show_proba = FALSE, palette = NULL)
 ```
@@ -124,8 +136,7 @@ plotSpectra3D(fit_model, comp = c(1, 2, 3), show_proba = FALSE, palette = NULL)
 **UMAP Non-linear Embedding Projection (plotSpectraUMAP)**
 When high biological proximity between distinct strains creates non-linear trajectories within the PLS score space, plotSpectraUMAP projects the complete PLS score matrix onto a 2D UMAP layout.
 
-```{r , message=FALSE, warning=FALSE, fig.width=12, fig.height=8, out.width="100%", fig.align="center"}
-# par(mfrow = c(1,2))
+```{r plot-umap, message = FALSE, warning = FALSE}
 
 plotSpectraUMAP(fit_model, n_neighbors = 10, min_dist = 0.01, show_proba = TRUE)
 plotSpectraUMAP(fit_model, n_neighbors = 10, min_dist = 0.01, show_proba = FALSE)
@@ -134,7 +145,7 @@ plotSpectraUMAP(fit_model, n_neighbors = 10, min_dist = 0.01, show_proba = FALSE
 **Model Diagnostics: Variance and Biomarker Trackers (plotPLSvar & plotPLSweights)**
 To assist in model interpretation, plotPLSvar tracks individual variance decay across components, while plotPLSweights plots loading profiles across mass channels to expose the specific $m/z$ biomarkers driving the strain discrimination.
 
-```{r , message=FALSE, warning=FALSE, fig.width=12, fig.height=8, out.width="100%", fig.align="center"}
+```{r plot-diagnostics, message = FALSE, warning = FALSE}
 # Variance scree plot
 plotPLSvar(fit_model)
 
@@ -148,15 +159,13 @@ plotPLSweights(fit_model, comp = 1)
 
 Once the model is fitted, `summary()` provides a structured diagnostic overview of the entire FPLS-DA pipeline in a single call. It covers four sections: the functional decomposition settings, the PLS dimension reduction statistics, the training data composition, and the in-sample classification performance.
 
-```{r, message=FALSE, warning=FALSE}
-summary(fit_model)
+```{r summary-model, message = FALSE, warning = FALSE}
+s <- summary(fit_model)
 ```
 
 The function can also print a formatted report directly to the console. The returned object `s` also allows programmatic access to every computed statistic without re-running the summary.
 
-```{r, message=FALSE, warning=FALSE}
-s = summary(fit_model)
-
+```{r summary-access, message = FALSE, warning = FALSE}
 # Overall accuracy
 cat(sprintf("Overall in-sample accuracy : %.1f%%\n", s$accuracy * 100))
 
@@ -165,4 +174,77 @@ print(s$recall)
 
 # Full confusion matrix
 print(s$confusion)
+```
+
+---
+
+### 7. Deep Learning Classification with Functional Neural Networks (`FNN`)
+
+For complex discrimination tasks, `maldiscrim` provides a Functional Neural Network (FNN) pipeline implemented in Python via `reticulate` and TensorFlow. The FNN captures non-linear spectral relationships that linear methods such as FPLS-DA may miss.
+
+Training a FNN model is computationally intensive (approximately one hour on standard hardware). For demonstration purposes, this vignette loads a pre-trained model object directly from the package cache.
+
+```{r load-fnn, message = FALSE, warning = FALSE}
+data("fnn_model")
+```
+
+**Training History (`plotTrainingFNN`)**
+
+Monitors convergence and helps identify potential overfitting by displaying loss and accuracy curves for both the training and validation sets across epochs.
+
+```{r fnn-history, message = FALSE, warning = FALSE}
+plotTrainingFNN(fnn_model)
+```
+
+**In-Sample Confusion Matrix (`plotConfusionFNN`)**
+
+Exposes cross-class ambiguities on the validation set as an annotated heatmap.
+
+```{r fnn-confusion, message = FALSE, warning = FALSE}
+plotConfusionFNN(fnn_model)
+```
+
+**Latent Space Projections (`plotUMAPFNN`, `plotMDSFNN`)**
+
+Evaluate cluster separation across different activation levels (logits vs. softmax). Statistical confidence ellipses enclose distinct biological strains.
+
+```{r fnn-umap, message = FALSE, warning = FALSE}
+plotUMAPFNN(fnn_model, on = "logits",  seed = 42)
+plotUMAPFNN(fnn_model, on = "softmax", seed = 42)
+```
+
+```{r fnn-mds, message = FALSE, warning = FALSE}
+plotMDSFNN(fnn_model, on = "logits", seed = 42)
+```
+
+**Interpretability: Grad-CAM Attribution (`plotGradCamFNN`)**
+
+Highlights the spectral regions that most influenced the network's decision for a given sample and target class, using gradient-weighted class activation maps from the last functional convolutional layer.
+
+```{r fnn-gradcam, message = FALSE, warning = FALSE}
+# plotGradCamFNN(fnn_model, classIndex = 1, sampleIndex = 1)
+```
+
+**Interpretability: Occlusion Sensitivity (`plotOcclusionFNN`)**
+
+Systematically masks spectral windows and monitors the resulting drop in class probability, mapping a sensitivity profile across the full m/z domain.
+
+```{r fnn-occlusion, message = FALSE, warning = FALSE}
+# plotOcclusionFNN(fnn_model, classIndex = 1, sampleIndex = 1, windowSize = 20)
+```
+
+**Interpretability: Filter Activations (`plotActivationFNN`)**
+
+Visualizes the feature map outputs of each filter in the first functional convolutional layer for a chosen sample.
+
+```{r fnn-activation, message = FALSE, warning = FALSE}
+# plotActivationFNN(fnn_model, sampleIndex = 1)
+```
+
+**Interpretability: Activation Maximization (`plotActivationMaxFNN`)**
+
+Uses gradient ascent to synthesize an idealized pseudo-spectrum that maximizes the prediction score for a specific target class, revealing what the network "expects" a given strain to look like.
+
+```{r fnn-actmax, message = FALSE, warning = FALSE}
+# plotActivationMaxFNN(fnn_model, classIndex = 1, steps = 50)
 ```
