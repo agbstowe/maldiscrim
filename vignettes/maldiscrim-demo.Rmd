@@ -183,7 +183,7 @@ print(s$confusion)
 
 For complex discrimination tasks, `maldiscrim` provides a Functional Neural Network (FNN) pipeline implemented in Python via `reticulate` and TensorFlow. The FNN captures non-linear spectral relationships that linear methods such as FPLS-DA may miss.
 
-#### 7.1 Training the FNN (`fitFNN`)
+#### 7.1 Training the FNN 
 
 Training a FNN model is computationally intensive. For demonstration purposes, this vignette loads a pre-trained model object directly from the package cache.
 
@@ -216,7 +216,7 @@ compilation, and early stopping automatically.
 # )
 ```
 
-#### 7.2 Network Architecture (`architectureFNN`)
+#### 7.2 Network Architecture
 
 Before training, `architectureFNN` allows the user to inspect and configure
 the network layout — number of filters, kernel sizes, pooling sizes, and dense
@@ -228,7 +228,7 @@ configuration.
 # Display and inspect the default FNN architecture
 architectureFNN(fnn_model)
 ```
-#### 7.3 Model Summary (`summary.FNN`)
+#### 7.3 Model Summary
 
 `summary()` prints a structured report of the FNN configuration and in-sample
 classification performance, following the same interface as `summary.FPLS_DA`.

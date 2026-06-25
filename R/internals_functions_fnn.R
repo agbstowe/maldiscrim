@@ -602,3 +602,136 @@
   object$dataPath  <- resolve(object$dataPath)
   object
 }
+
+
+# .checkPythonVersionCompatibility --------------------------------------------
+
+#' Validate Python version compatibility for maldiscrim dependencies
+#'
+#' @param pythonVersion Character. Python version string (e.g. \code{"3.10"}).
+#' @return Invisibly returns \code{TRUE} if the version is compatible.
+#' @keywords internal
+.checkPythonVersionCompatibility <- function(pythonVersion) {
+
+  parts <- strsplit(pythonVersion, "\\.")[[1]]
+
+  if (length(parts) < 2) {
+    stop(sprintf(
+      paste("'pythonVersion' must include at least a major and minor version",
+            "(e.g. \"3.10\"), got: \"%s\"."),
+      pythonVersion
+    ))
+  }
+
+  major <- suppressWarnings(as.integer(parts[1]))
+  minor <- suppressWarnings(as.integer(parts[2]))
+
+  if (is.na(major) || is.na(minor)) {
+    stop(sprintf(
+      "'pythonVersion' could not be parsed as a version number: \"%s\".",
+      pythonVersion
+    ))
+  }
+
+  if (major != 3L) {
+    stop(sprintf(
+      "maldiscrim requires Python version 3.x. Got Python %d.x.", major
+    ))
+  }
+
+  if (minor < 8L) {
+    stop(sprintf(
+      paste("Python 3.%d is below the minimum supported version (3.8).",
+            "Please use a version between 3.8 and 3.11."), minor
+    ))
+  }
+
+  if (minor > 11L) {
+    stop(sprintf(
+      paste("Python 3.%d is not supported.",
+            "TensorFlow >= 2.12, < 2.16 and the maldiscrim Python",
+            "dependencies are not yet compatible with Python 3.12+.",
+            "Please use a version between 3.8 and 3.11."), minor
+    ))
+  }
+
+  invisible(TRUE)
+}
+
+
+# .checkPythonVersionAvailable ------------------------------------------------
+
+#' #' Check that the requested Python version is installed on the system
+#' #'
+#' #' Searches for a `python3.X` executable matching the requested version using
+#' #' both `Sys.which()` (Unix/macOS) and common Windows installation paths.
+#' #' Emits an informative error with download instructions if not found.
+#' #'
+#' #' @param pythonVersion Character. Python version string (e.g. \code{"3.10"}).
+#' #' @return Invisibly returns the resolved path if found.
+#' #' @keywords internal
+#' .checkPythonVersionAvailable <- function(pythonVersion) {
+#'
+#'   parts <- strsplit(pythonVersion, "\\.")[[1]]
+#'   major <- parts[1]
+#'   minor <- parts[2]
+#'
+#'   # Candidate executable names to search
+#'   candidates <- c(
+#'     sprintf("python%s.%s", major, minor),
+#'     sprintf("python%s",    major),
+#'     "python"
+#'   )
+#'
+#'   # 1. Try Sys.which for PATH-based lookup (Unix / macOS / Windows with PATH)
+#'   found_path <- ""
+#'   for (cmd in candidates) {
+#'     path <- Sys.which(cmd)
+#'     if (nzchar(path)) {
+#'       # Verify the found executable actually matches the requested version
+#'       version_out <- tryCatch(
+#'         system2(path, "--version", stdout = TRUE, stderr = TRUE),
+#'         error = function(e) ""
+#'       )
+#'       version_str <- paste(version_out, collapse = " ")
+#'       if (grepl(sprintf("Python %s\\.%s", major, minor), version_str)) {
+#'         found_path <- path
+#'         break
+#'       }
+#'     }
+#'   }
+#'
+#'   # 2. Windows-specific: check common installation directories
+#'   if (!nzchar(found_path) && .Platform$OS.type == "windows") {
+#'     win_paths <- c(
+#'       sprintf("C:/Python%s%s/python.exe",        major, minor),
+#'       sprintf("C:/Program Files/Python%s%s/python.exe", major, minor),
+#'       file.path(Sys.getenv("LOCALAPPDATA"),
+#'                 sprintf("Programs/Python/Python%s%s/python.exe", major, minor))
+#'     )
+#'     for (wp in win_paths) {
+#'       if (file.exists(wp)) {
+#'         found_path <- wp
+#'         break
+#'       }
+#'     }
+#'   }
+#'
+#'   if (!nzchar(found_path)) {
+#'     stop(sprintf(
+#'       paste(
+#'         "\n",
+#'         "Python %s.%s was not found on this system.\n",
+#'         "\n",
+#'         "To fix this:\n",
+#'         "  1. Download Python %s.%s from https://www.python.org/downloads/\n",
+#'         "  2. Restart R and run maldiscrim_install_python() again\n",
+#'         "\n",
+#'         "Alternatively, specify a Python version that is already installed:\n",
+#'         " (pythonVersion between \"3.8\" and \"3.11\")\n",
+#'       ), major, minor, major, minor
+#'     ))
+#'   }
+#'
+#'   invisible(found_path)
+#' }
