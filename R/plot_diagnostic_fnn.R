@@ -102,7 +102,7 @@ plotConfusionFNN <- function(object, ...) {
   pred        <- predict.FNN(object, newdata = NULL)
   true_labels <- as.character(object$labels)
   # confusion   <- table(Predicted = pred$class, Actual = true_labels)
-  cf          <- caret::confusionMatrix(as.factor(pred$class), as.factor(true_labels))
+  cf          <- caret::confusionMatrix(factor(pred$class, levels = object$classNames), as.factor(true_labels))
   confusion   <- cf$table
   df_conf     <- as.data.frame(as.table(confusion))
 
