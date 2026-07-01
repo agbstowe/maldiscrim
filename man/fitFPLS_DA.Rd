@@ -16,7 +16,7 @@ fitFPLS_DA(
   boundary = "periodic",
   nlevels = NULL,
   level = 3,
-  precomputed = FALSE
+  verbose = TRUE
 )
 }
 \arguments{
@@ -47,8 +47,7 @@ If \code{NULL}, it is automatically set to the maximum possible level.}
 \item{level}{Integer. The specific wavelet decomposition resolution level from which
 coefficients are extracted for downstream classification. Default is \code{3}.}
 
-\item{precomputed}{Logical. If \code{TRUE}, the function bypasses all heavy computations and returns a built-in
-pre-trained model object. Primarily used to speed up examples and unit testing. Default is \code{FALSE}.}
+\item{verbose}{Logical. If \code{TRUE}, prints training progress and messages. Default is \code{TRUE}.}
 }
 \value{
 An object of class \code{"FPLS_DA"}. This object is a named list containing:
@@ -85,9 +84,9 @@ The pipeline executes three sequential phases to achieve classification of funct
 }
 }
 \examples{
-# Model loading using the precomputed cache
-model_res <- fitFPLS_DA(precomputed = TRUE)
-# print(model_res)
+# Pre entrained Model loading
+data(fpls_model)
+# print(fpls_model)
 
 \donttest{
 # Real execution example using the package built-in data 'spectra100'

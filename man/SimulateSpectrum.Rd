@@ -10,7 +10,8 @@ SimulateSpectrum(
   k = NULL,
   clust_method = c("kmeans", "hclust", "gmm"),
   factorNoise = 1,
-  plot = FALSE
+  plot = FALSE,
+  verbose = TRUE
 )
 }
 \arguments{
@@ -37,6 +38,8 @@ Higher values increase the simulated diversity (default is 1).}
 
 \item{plot}{Logical. If \code{TRUE}, the function displays a 2 x 2 diagnostic dashboard
 showing variance explanation, density zones, latent projections, and reconstructed spectra.}
+
+\item{verbose}{Logical. If \code{TRUE}, prints progress messages. Default is \code{TRUE}.}
 }
 \value{
 A numeric matrix with \code{n} rows and \code{p} columns containing the simulated spectra. Rows are named after their simulated cluster origin.

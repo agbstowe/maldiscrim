@@ -21,6 +21,7 @@
 #' Higher values increase the simulated diversity (default is 1).
 #' @param plot Logical. If \code{TRUE}, the function displays a 2 x 2 diagnostic dashboard
 #' showing variance explanation, density zones, latent projections, and reconstructed spectra.
+#' @param verbose Logical. If \code{TRUE}, prints progress messages. Default is \code{TRUE}.
 #'
 #' @details
 #' The function transforms the input mass spectrometry matrix into functional data objects using \code{MakeFPCAInputs}.
@@ -60,27 +61,50 @@
 #' @importFrom stats kmeans hclust cutree dist rnorm approx sd
 #' @importFrom graphics par barplot lines text legend title points
 #' @importFrom grDevices adjustcolor rainbow
+#' @import mclust
 #' @export
 
 SimulateSpectrum <- function(data, n, k = NULL,
                              clust_method = c("kmeans", "hclust", "gmm"),
-                             factorNoise = 1, plot = FALSE) {
+                             factorNoise = 1, plot = FALSE, verbose = TRUE) {
 
-  # -- Input validation
+  # Input validation
   clust_method <- match.arg(clust_method)
   if (is.null(k)) k <- 3L
+
+  if (!is.matrix(data) && !is.data.frame(data)) {
+    stop("'data' must be a matrix or a data.frame.")
+  }
+  if (!is.numeric(n) || length(n) != 1 || n < 1 || n != round(n)) {
+    stop("'n' must be a single positive integer.")
+  }
+  if (!is.numeric(k) || length(k) != 1 || k < 1 || k != round(k)) {
+    stop("'k' must be a single positive integer.")
+  }
+  if (!is.numeric(factorNoise) || length(factorNoise) != 1 || factorNoise < 0) {
+    stop("'factorNoise' must be a single non-negative number.")
+  }
+  if (!is.logical(plot) || length(plot) != 1) {
+    stop("'plot' must be a single logical value.")
+  }
+  if (!is.logical(verbose) || length(verbose) != 1) {
+    stop("'verbose' must be a single logical value.")
+  }
 
   m_z            <- seq_len(ncol(data))
   colnames(data) <- m_z
 
-  # -- 1. FPCA decomposition and clustering
+  if (verbose)  cli::cli_progress_step("Performing FPCA decomposition and clustering ({clust_method})...")
+
+  # FPCA decomposition and clustering
   fpca_res      <- .fpcaClustering(data, k = k, n = n, clust_method = clust_method)
   res_fpca      <- fpca_res$res_fpca
   scores        <- fpca_res$scores
   cluster_ids   <- fpca_res$cluster_ids
   n_per_cluster <- fpca_res$n_per_cluster
 
-  # -- 2. Score simulation with adaptive noise
+  if (verbose) cli::cli_progress_step("Simulating scores with adaptive noise... ")
+  #  Score simulation with adaptive noise
   K_total         <- ncol(scores)
   sim_scores_list <- vector("list", k)
 
@@ -97,13 +121,15 @@ SimulateSpectrum <- function(data, n, k = NULL,
       noise   <- matrix(rnorm(n_sim * K_total, mean = 0, sd = 1),
                         ncol = K_total)
       noise   <- sweep(noise, 2, sds * 0.1 * factorNoise, "*")
-      sim_scores_list[[i]] <- pts_base[sim_idx, ] + noise
+      sim_scores_list[[i]] <- pts_base[sim_idx, , drop = FALSE] + noise
     }
   }
 
+  if (verbose) cli::cli_progress_step("Reconstructing simulated spectra ... ")
+
   all_sim_scores <- do.call(rbind, sim_scores_list)
 
-  # -- 3. Spectral reconstruction
+  # Spectral reconstruction
   simulated_matrix <- t(apply(
     all_sim_scores, 1, .reconstructSpectrum,
     mu          = res_fpca$mu,
@@ -115,8 +141,11 @@ SimulateSpectrum <- function(data, n, k = NULL,
   rownames(simulated_matrix) <- paste0("strain ", rep(seq_len(k), n_per_cluster))
   colnames(simulated_matrix) <- colnames(data)
 
-  # -- 4. Diagnostic plots
+  if (verbose) cli::cli_progress_done()
+
+  # Diagnostic plots
   if (plot) {
+    if (verbose) cli::cli_progress_step("Generating diagnostic plots... ")
     .simulateDiagPlots(
       res_fpca         = res_fpca,
       all_sim_scores   = all_sim_scores,
@@ -125,7 +154,9 @@ SimulateSpectrum <- function(data, n, k = NULL,
       k                = k,
       n_per_cluster    = n_per_cluster
     )
+    if (verbose) cli::cli_progress_done()
   }
+
 
   return(simulated_matrix)
 }

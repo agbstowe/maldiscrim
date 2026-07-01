@@ -21,9 +21,9 @@
 #' If `NULL`, it is automatically set to the maximum possible level.
 #' @param level Integer. The specific wavelet decomposition resolution level from which
 #' coefficients are extracted for downstream classification. Default is `3`.
-#' @param precomputed Logical. If `TRUE`, the function bypasses all heavy computations and returns a built-in
-#' pre-trained model object. Primarily used to speed up examples and unit testing. Default is `FALSE`.
-#'
+# #' @param precomputed Logical. If `TRUE`, the function bypasses all heavy computations and returns a built-in
+# #' pre-trained model object. Primarily used to speed up examples and unit testing. Default is `FALSE`.
+#' @param verbose Logical. If \code{TRUE}, prints training progress and messages. Default is \code{TRUE}.
 #'
 #' @details
 #' The pipeline executes three sequential phases to achieve classification of functional spectral data:
@@ -57,9 +57,9 @@
 #' @seealso \code{\link[pls]{plsr}}, \code{\link[MASS]{lda}}, \code{\link[fda]{Data2fd}}, \code{\link[wavelets]{dwt}}
 #'
 #' @examples
-#' # Model loading using the precomputed cache
-#' model_res <- fitFPLS_DA(precomputed = TRUE)
-#' # print(model_res)
+#' # Pre entrained Model loading
+#' data(fpls_model)
+#' # print(fpls_model)
 #'
 #' \donttest{
 #' # Real execution example using the package built-in data 'spectra100'
@@ -79,16 +79,16 @@
 #' @export
 fitFPLS_DA <- function(data, method = c("bsplines", "wavelets"), nbasis = 1050, ncomp = NULL, argvals = 2001:22664,
                           rangeval = c(1999,22664), nfolds = 5,
-                          filter = "la14", boundary = "periodic", nlevels = NULL, level = 3, precomputed = FALSE) {
+                          filter = "la14", boundary = "periodic", nlevels = NULL, level = 3, verbose = TRUE) {
 
-  if (precomputed) {
-    message("Loading precomputed FPLS_DA model from cache")
-    if (exists("fpls_model", envir = asNamespace("maldiscrim"))) {
-      return(get("fpls_model", envir = asNamespace("maldiscrim")))
-    } else {
-      stop("Cached model 'fpls_model' not found in the package data.")
-    }
-  }
+  # if (precomputed) {
+  #   message("Loading precomputed FPLS_DA model from cache")
+  #   if (exists("fpls_model", envir = asNamespace("maldiscrim"))) {
+  #     return(get("fpls_model", envir = asNamespace("maldiscrim")))
+  #   } else {
+  #     stop("Cached model 'fpls_model' not found in the package data.")
+  #   }
+  # }
 
   method <- match.arg(method)
   groups <- as.factor(rownames(data))
@@ -112,26 +112,35 @@ fitFPLS_DA <- function(data, method = c("bsplines", "wavelets"), nbasis = 1050, 
   if (!is.numeric(level) || length(level) != 1 || level < 1 || level != round(level)) {
     stop("'level' must be a single positive integer.")
   }
+  if (!is.logical(verbose) || length(verbose) != 1) {
+    stop("'verbose' must be a single logical value (TRUE or FALSE).")
+  }
 
-  # Basis decomposition
+  # Data decomposition
+  if (verbose) {
+    cli::cli_alert_info("This step can take a moment. Please hold on... ")
+    cli::cli_progress_step("Decomposing functional data using {.val {method}} basis")
+  }
   res_fdaDecomposition <- .fdaDecomposition(data = data, method = method, nbasis = nbasis, rangeval = rangeval,
-                              argvals  = argvals, filter  = filter, boundary = boundary, nlevels  = nlevels, level  = level)
+                                            argvals  = argvals, filter  = filter, boundary = boundary, nlevels  = nlevels, level  = level)
   coef_matrix          <- res_fdaDecomposition$coef_matrix
 
-  # PLS model
+  # PLS cross validation
+  if (verbose) cli::cli_progress_step("Fitting PLS model ({nfolds}-fold cross-validation)")
   y_dummy    <- fastDummies::dummy_cols(groups, remove_selected_columns = TRUE)
   max_search <- min(nrow(data) - 1L, 20L)
   pls_mod    <- pls::plsr(as.matrix(y_dummy) ~ coef_matrix, ncomp = max_search, method = "kernelpls",
-                       validation = "CV", segments = nfolds)
+                          validation = "CV", segments = nfolds)
 
-  # Optimal number of components
+  # Optimize components
   if (!is.null(ncomp)) {
     ncomp   <- min(ncomp, max_search)
-    message(sprintf("User-supplied ncomp bounded to %d (maximum allowed for this dataset).", ncomp))
+    if (verbose) cli::cli_alert_info("User-supplied ncomp bounded to {ncomp} (maximum allowed).")
   } else {
     ncomp   <- .selectOptimalNcomp(pls_mod)
-    message(sprintf("Optimal number of PLS components automatically set to %d.", ncomp))
   }
+
+  if (verbose) cli::cli_progress_step("Filtering variables and fitting LDA model ({ncomp} components selected)")
 
   # Score extraction and near-zero-variance filtering
   scores        <- pls_mod$scores[, seq_len(ncomp), drop = FALSE]
@@ -140,8 +149,17 @@ fitFPLS_DA <- function(data, method = c("bsplines", "wavelets"), nbasis = 1050, 
   const_idx     <- f1 < 0.0001
   scores_clean  <- scores[, !const_idx, drop = FALSE]
 
+  if (ncol(scores_clean) == 0) {
+    if (verbose) cli::cli_progress_done(result = "failed")
+    stop(paste("All PLS components were removed by the near-zero variance filter.",
+      "Try increasing ncomp, reducing level (wavelets), or adjusting", "nbasis (bsplines)."
+    ))
+  }
+
   # LDA model
   lda_mod     <- MASS::lda(x = scores_clean, grouping = groups)
+
+  if (verbose) cli::cli_progress_done()
 
   # Output object
   model_obj <- list(
@@ -181,6 +199,7 @@ fitFPLS_DA <- function(data, method = c("bsplines", "wavelets"), nbasis = 1050, 
 #' If the maximum posterior probability for a sample is below this threshold, its predicted class is labeled as \code{"Doubty"}.
 #' Default is \code{NULL} (no threshold applied).
 #' @param ... Further arguments passed to or from other methods.
+#' @param verbose Logical. If \code{TRUE}, prints progress messages. Default is \code{TRUE}.
 #' @importFrom stats predict
 #'
 #' @details
@@ -200,11 +219,11 @@ fitFPLS_DA <- function(data, method = c("bsplines", "wavelets"), nbasis = 1050, 
 #'
 #'
 #' @examples
-#' # Load the pre-trained example model from the package cache
-#' model_res <- fitFPLS_DA(precomputed = TRUE)
+#' # Pre entrained Model loading
+#' data(fpls_model)
 #'
 #' # Predict on the training data by omitting 'newdata' (Fitted values)
-#' predict_res <- predict(model_res)
+#' predict_res <- predict(fpls_model)
 #' table(predict_res$class)
 #'
 #' \donttest{
@@ -224,23 +243,32 @@ fitFPLS_DA <- function(data, method = c("bsplines", "wavelets"), nbasis = 1050, 
 #' @importFrom MASS lda
 #' @import pls
 #' @export
-predict.FPLS_DA <- function(object, newdata = NULL, threshold = NULL, ...) {
+predict.FPLS_DA <- function(object, newdata = NULL, threshold = NULL, verbose = TRUE, ...) {
 
   if (is.null(newdata)) {
     new_coefs <- object$pls_model$model[[2]]
-
   } else {
     if (!is.matrix(newdata) && !is.data.frame(newdata)) {
       stop("newdata must be a matrix or a data.frame.")
     }
+
+    if (verbose) {
+      cli::cli_alert_info("This step can take a moment. Please hold on... ")
+      cli::cli_progress_step("Decomposing new functional data...")
+    }
     new_coefs <- .fdaDecomposeNew(newdata, object)
+
   }
+
+  if (verbose) cli::cli_progress_step("Computing PLS scores and LDA classification...")
 
   # PLS
   pls_scores <- predict(object$pls_model, comps = seq_len(object$ncompOpt), newdata = as.matrix(new_coefs), type = "scores")
+
   # Near-zero-variance filtering
   clean_scores           <- data.frame(pls_scores[, !object$const_idx])
   colnames(clean_scores) <- colnames(object$lda_model$means)
+
   # LDA
   lda_res     <- predict(object$lda_model, newdata = clean_scores)
   final_class <- as.character(lda_res$class)
@@ -250,13 +278,14 @@ predict.FPLS_DA <- function(object, newdata = NULL, threshold = NULL, ...) {
     final_class[max_probs < threshold] <- "Doubty"
   }
 
+  if (verbose) cli::cli_progress_done()
+
   return(list(
     class = final_class,
     probability = max_probs,
     lda_res = lda_res
   ))
 }
-
 
 
 
@@ -269,7 +298,7 @@ predict.FPLS_DA <- function(object, newdata = NULL, threshold = NULL, ...) {
 #' @method summary FPLS_DA
 #'
 #' @param object A fitted model object of class \code{"FPLS_DA"}.
-#' @param ... Further arguments passed to or from other methods (currently ignored).
+#' @param verbose Logical. If \code{TRUE}, prints training progress and messages. Default is \code{TRUE}.
 #'
 #' @details
 #' The summary is organised into three sections:
@@ -299,16 +328,17 @@ predict.FPLS_DA <- function(object, newdata = NULL, threshold = NULL, ...) {
 #' @seealso \code{\link{fitFPLS_DA}}, \code{\link{predict.FPLS_DA}}
 #'
 #' @examples
-#' model <- fitFPLS_DA(precomputed = TRUE)
-#' summary(model)
+# Pre entrained Model loading
+#' data(fpls_model)
+#' summary(fpls_model)
 #'
 #' # Programmatic access to summary statistics
-#' s <- summary(model)
+#' s <- summary(fpls_model)
 #' s$accuracy
 #' s$confusion
 #'
 #' @export
-summary.FPLS_DA <- function(object, ...) {
+summary.FPLS_DA <- function(object, verbose = TRUE) {
 
   # In-sample predictions
   pred        <- predict.FPLS_DA(object, newdata = NULL)
@@ -327,7 +357,7 @@ summary.FPLS_DA <- function(object, ...) {
   nRemoved <- sum(object$const_idx)
 
   # Group distribution
-  Frequency <- table(Freq = true_labels)
+  Frequency <- table(true_labels)
 
   sep_thick <- strrep("=", 55)
   sep_thin  <- strrep("-", 55)

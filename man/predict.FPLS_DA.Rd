@@ -4,7 +4,7 @@
 \alias{predict.FPLS_DA}
 \title{Predict Method for FPLS_DA Model Fits}
 \usage{
-\method{predict}{FPLS_DA}(object, newdata = NULL, threshold = NULL, ...)
+\method{predict}{FPLS_DA}(object, newdata = NULL, threshold = NULL, verbose = TRUE, ...)
 }
 \arguments{
 \item{object}{A fitted model object of class \code{"FPLS_DA"}.}
@@ -15,6 +15,8 @@ If omitted (\code{NULL}), the function automatically retrieves the coefficients 
 \item{threshold}{Numeric. A classification probability threshold (between 0 and 1).
 If the maximum posterior probability for a sample is below this threshold, its predicted class is labeled as \code{"Doubty"}.
 Default is \code{NULL} (no threshold applied).}
+
+\item{verbose}{Logical. If \code{TRUE}, prints progress messages. Default is \code{TRUE}.}
 
 \item{...}{Further arguments passed to or from other methods.}
 }
@@ -36,11 +38,11 @@ Finally, after removing near-zero variance components, the Linear Discriminant A
 evaluate the scores to output the most probable strain class along with its associated posterior probability.
 }
 \examples{
-# Load the pre-trained example model from the package cache
-model_res <- fitFPLS_DA(precomputed = TRUE)
+# Pre entrained Model loading
+data(fpls_model)
 
 # Predict on the training data by omitting 'newdata' (Fitted values)
-predict_res <- predict(model_res)
+predict_res <- predict(fpls_model)
 table(predict_res$class)
 
 \donttest{

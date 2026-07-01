@@ -54,6 +54,15 @@
   .maldiscrimPyEnv$dense
 }
 
+.transfer <- function() {
+  if (is.null(.maldiscrimPyEnv$transfer)) {
+    pyPath <- system.file("python", package = "maldiscrim")
+    .maldiscrimPyEnv$transfer <- reticulate::import_from_path(
+      "maldiscrim_fnn.transfer", path = pyPath
+    )
+  }
+  .maldiscrimPyEnv$transfer
+}
 
 # ══════════════════════════════════════════════════════════════════════════════
 # .exportForFNN
@@ -295,10 +304,15 @@
     dir.create(out_dir, recursive = TRUE)
   }
 
+  # export_matrix           <- as.matrix(data)
+  # colnames(export_matrix) <- paste0("mz_", seq_len(ncol(export_matrix)))
+  #
+  # utils::write.csv(export_matrix, file = filePath, row.names = FALSE)
+
   export_matrix           <- as.matrix(data)
   colnames(export_matrix) <- paste0("mz_", seq_len(ncol(export_matrix)))
 
-  utils::write.csv(export_matrix, file = filePath, row.names = FALSE)
+  data.table::fwrite(as.data.frame(export_matrix), file = filePath, row.names = FALSE)
 }
 
 
@@ -473,6 +487,10 @@
 #'
 #' @keywords internal
 .checkPythonEnv <- function() {
+
+  # Sys.setenv(TF_CPP_MIN_LOG_LEVEL = "2")
+
+  # Sys.setenv(TF_ENABLE_ONEDNN_OPTS = "0")
 
   .setMaldiscrimVenvHome()
 

@@ -196,24 +196,24 @@ matrix. The function handles Python environment setup, data formatting, model
 compilation, and early stopping automatically.
 
 ```{r fnn-train, eval = FALSE}
-# Full training example — not executed in this vignette (~1 hour)
-# fnn_model_trained <- fitFNN(
-#   data = spectra100,
-#   trainSize = 0.8,
-#   batchSize = 32L,
-#   nbEpochs = 50L,
-#   stepsPerEpoch = 16L,
-#   patience = 5L,
-#   monitor = "val_loss",
-#   firstLayer = list(nFilters = 50L, nFunctions = 100L, resolution = 500L, basisType =
-#     "Fourier", activation = "elu"),
-#   secondLayer = list(nFilters = 5L, nFunctions = 70L, resolution = 200L, basisType =
-#     "Fourier", activation = "elu"),
-#   finalLayer = list(nFunctions = 50L, resolution = 19966L, basisType = "Fourier",
-#     activation = "softmax", pooling = TRUE),
-#   outputPath = "outputs/fnn",
-#   verbose = TRUE
-# )
+# Full training example (take more time)
+fnn_model_trained <- fitFNN(
+  data = spectra100,
+  trainSize = 0.8,
+  batchSize = 32L,
+  nbEpochs = 50L,
+  stepsPerEpoch = 16L,
+  patience = 5L,
+  monitor = "val_loss",
+  firstLayer = list(nFilters = 50L, nFunctions = 100L, resolution = 500L, basisType =
+    "Fourier", activation = "elu"),
+  secondLayer = list(nFilters = 5L, nFunctions = 70L, resolution = 200L, basisType =
+    "Fourier", activation = "elu"),
+  finalLayer = list(nFunctions = 50L, resolution = 19966L, basisType = "Fourier",
+    activation = "softmax", pooling = TRUE),
+  outputPath = "outputs/fnn",
+  verbose = TRUE
+)
 ```
 
 #### 7.2 Network Architecture

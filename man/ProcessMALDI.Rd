@@ -4,7 +4,12 @@
 \alias{ProcessMALDI}
 \title{Import and Preprocessing of Biological Replicates from MALDI-TOF Strains}
 \usage{
-ProcessMALDI(dataFile, methodBaseline = "SNIP", halfWindowSize = 10)
+ProcessMALDI(
+  dataFile,
+  methodBaseline = "SNIP",
+  halfWindowSize = 10,
+  verbose = TRUE
+)
 }
 \arguments{
 \item{dataFile}{Character. Path to the parent directory containing strain subfolders with raw spectra files.}
@@ -12,6 +17,8 @@ ProcessMALDI(dataFile, methodBaseline = "SNIP", halfWindowSize = 10)
 \item{methodBaseline}{Character. The baseline subtraction method to be passed to \code{MALDIquant::removeBaseline}. Default is \code{"SNIP"}.}
 
 \item{halfWindowSize}{Integer. The half-window size used for Savitzky-Golay intensity smoothing. Default is \code{10}.}
+
+\item{verbose}{Logical. If \code{TRUE}, prints training progress and messages. Default is \code{TRUE}.}
 }
 \value{
 A numeric matrix where each row represents a processed biological replicate

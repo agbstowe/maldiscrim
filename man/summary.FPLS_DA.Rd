@@ -4,12 +4,12 @@
 \alias{summary.FPLS_DA}
 \title{Summary Method for FPLS_DA Model Fits}
 \usage{
-\method{summary}{FPLS_DA}(object, ...)
+\method{summary}{FPLS_DA}(object, verbose = TRUE)
 }
 \arguments{
 \item{object}{A fitted model object of class \code{"FPLS_DA"}.}
 
-\item{...}{Further arguments passed to or from other methods (currently ignored).}
+\item{verbose}{Logical. If \code{TRUE}, prints training progress and messages. Default is \code{TRUE}.}
 }
 \value{
 Invisibly returns a named list with the following elements, allowing programmatic access to the computed summary statistics:
@@ -42,11 +42,11 @@ per-group recall.
 In-sample predictions are obtained by calling \code{predict.FPLS_DA} on the training coefficients (i.e. \code{newdata = NULL}).
 }
 \examples{
-model <- fitFPLS_DA(precomputed = TRUE)
-summary(model)
+data(fpls_model)
+summary(fpls_model)
 
 # Programmatic access to summary statistics
-s <- summary(model)
+s <- summary(fpls_model)
 s$accuracy
 s$confusion
 

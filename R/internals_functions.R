@@ -27,7 +27,6 @@
 .fdaDecomposition <- function(data, method, nbasis, rangeval, argvals, filter, boundary, nlevels, level) {
 
   if (method == "bsplines") {
-    message("Using B-spline functional basis decomposition.")
     basis_obj    <- fda::create.bspline.basis(rangeval = rangeval, nbasis = nbasis)
     fd_obj       <- fda::Data2fd(argvals   = argvals, y = t(data), basisobj = basis_obj)
     coef_matrix  <- t(fd_obj$coefs)
@@ -41,7 +40,6 @@
     ))
 
   } else {
-    message("Using Discrete Wavelet Transform (DWT) decomposition.")
     max_levels <- floor(log2(ncol(data)))
 
     # Resolve nlevels
@@ -263,9 +261,11 @@
     yVec = as.vector(t(data))
   )
 
-  res_fpca <- fdapace::FPCA(
+  res_fpca <- suppressWarnings(
+    fdapace::FPCA(
     input_data$Ly, input_data$Lt,
     optns = list(dataType = "Dense", methodSelectK = "AIC")
+    )
   )
   scores      <- res_fpca$xiEst
   scores_2d   <- scores[, 1:2, drop = FALSE]
@@ -376,8 +376,7 @@
 #' @return Called for its side effect (plots). Returns `NULL` invisibly.
 #'
 #' @keywords internal
-.simulateDiagPlots <- function(res_fpca, all_sim_scores, simulated_matrix,
-                               m_z, k, n_per_cluster) {
+.simulateDiagPlots <- function(res_fpca, all_sim_scores, simulated_matrix, m_z, k, n_per_cluster) {
 
   K_total     <- ncol(res_fpca$xiEst)
   palette_sim <- rainbow(k)
@@ -411,39 +410,37 @@
 
   # B. Density zones (KDE) — real data only
   # Snapshot par before fdapace call to restore mfrow/mar afterwards
-  par_before_b <- par(no.readonly = TRUE)
-  fdapace::CreateOutliersPlot(
-    res_fpca,
-    optns = list(fIndices = c(1, 2), variant = "KDE")
-  )
-  par(par_before_b)
-  title(main = "Density Zones (Latent Space)", cex.main = 0.9)
+  # par_before_b <- par(no.readonly = TRUE)
+  fdapace::CreateOutliersPlot(res_fpca,
+    optns = list(fIndices = c(1, 2), variant = "KDE"))
+  # par(par_before_b)
+  title(main = "Density Zones (Latent Space)", cex.main = 1.2)
 
   # C. Simulated scores projected onto KDE background --------------------------
   # Step 1: draw KDE background (real data)
-  par_before_c <- par(no.readonly = TRUE)
+  # par_before_c <- par(no.readonly = TRUE)
   fdapace::CreateOutliersPlot(
     res_fpca,
     optns = list(fIndices = c(1, 2), variant = "KDE")
   )
-  par(par_before_c)
+  # par(par_before_c)
 
   # Step 2: attenuate real data points by overlaying a semi-transparent white
   # rectangle — this dims the real points without removing the KDE contours
   usr <- par("usr")
   rect(usr[1], usr[3], usr[2], usr[4],
-       col    = adjustcolor("white", alpha.f = 0.45),
+       col    = adjustcolor("white", alpha.f = 0.8),
        border = NA)
 
   # Step 3: overlay simulated points with high visibility
   points(
     all_sim_scores[, 1], all_sim_scores[, 2],
     pch = 3,
-    col = adjustcolor(palette_sim[color_idx], alpha.f = 0.9),
+    col = adjustcolor(palette_sim[color_idx], alpha.f = 1.5),
     cex = 1.0
   )
 
-  title(main = "Projection of Simulated Spectra", cex.main = 0.9)
+  title(main = "Projection of Simulated Spectra", cex.main = 1.2)
 
   legend(
     "topright",
@@ -452,7 +449,7 @@
     pch    = 3,
     pt.cex = 1.0,
     cex    = 0.75,
-    bty    = "n",                          # no legend box border
+    bty    = "n",
     title  = "Cluster"
   )
 

@@ -8,6 +8,7 @@
 #' @param dataFile Character. Path to the parent directory containing strain subfolders with raw spectra files.
 #' @param methodBaseline Character. The baseline subtraction method to be passed to `MALDIquant::removeBaseline`. Default is `"SNIP"`.
 #' @param halfWindowSize Integer. The half-window size used for Savitzky-Golay intensity smoothing. Default is `10`.
+#' @param verbose Logical. If \code{TRUE}, prints training progress and messages. Default is \code{TRUE}.
 #'
 #' @details
 #' The function scans the `dataFile` directory for subfolders, where each subfolder
@@ -53,9 +54,18 @@
 #'
 #'
 #' @export
-ProcessMALDI <- function(dataFile, methodBaseline = "SNIP", halfWindowSize = 10) { # length intensity adding
+ProcessMALDI <- function(dataFile, methodBaseline = "SNIP", halfWindowSize = 10, verbose =  TRUE) {
 
   strains <- list.dirs(dataFile, full.names = FALSE, recursive = FALSE)
+
+  # Initialize progress bar
+  if (verbose) {
+    id_bar <- cli::cli_progress_bar(
+      name = "Processing strains",
+      total = length(strains)
+    )
+  }
+
   rep_bio <- do.call(rbind, lapply(strains, function(strain_){
     file_strain <- file.path(dataFile, strain_)
 
@@ -100,8 +110,13 @@ ProcessMALDI <- function(dataFile, methodBaseline = "SNIP", halfWindowSize = 10)
 
     rownames(msp_strain) <- rep(strain_, nrow(msp_strain))
 
+    # Progress bar updated
+    if (verbose) cli::cli_progress_update(id = id_bar)
+
     return(msp_strain)
   }))
 
+  # Close progress bar
+  if (verbose) cli::cli_progress_done(id = id_bar)
   return(rep_bio)
 }

@@ -4,7 +4,7 @@
 \alias{predict.FNN}
 \title{Predict Method for FNN Model Fits}
 \usage{
-\method{predict}{FNN}(object, newdata = NULL, threshold = NULL, ...)
+\method{predict}{FNN}(object, newdata = NULL, threshold = NULL, verbose = TRUE, ...)
 }
 \arguments{
 \item{object}{A fitted model object of class \code{"FNN"}.}
@@ -15,6 +15,8 @@ If omitted (\code{NULL}), the function retrieves predictions on the data used to
 \item{threshold}{Numeric. A classification probability threshold (between 0 and 1).
 If the maximum softmax probability for a sample is below this threshold,
 its predicted class is labeled as \code{"Doubty"}. Default is \code{NULL}.}
+
+\item{verbose}{Logical. If \code{TRUE}, prints training progress and messages. Default is \code{TRUE}.}
 
 \item{...}{Further arguments passed to or from other methods.}
 }
