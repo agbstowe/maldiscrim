@@ -25,7 +25,7 @@ Creates a dedicated Python virtual environment named \code{"maldiscrim-env"} and
 all Python packages required by the functional neural network (FNN) part of the package.
 }
 \details{
-This function only needs to be run once per machine. It installs \code{tensorflow}, \code{keras}, \code{numpy},
+This function only needs to be run once per machine. It installs \code{tensorflow}, \code{numpy},
 \code{pandas}, \code{scikit-learn}, \code{scipy}, \code{umap-learn}, \code{plotly}, \code{matplotlib}, \code{seaborn},
 \code{plotnine}, \code{opencv-python}, \code{tf-keras-vis} and \code{xplique} into the \code{"maldiscrim-env"}
 virtual environment, then activates it for the current R session via \code{reticulate::use_virtualenv()}.
@@ -33,6 +33,14 @@ virtual environment, then activates it for the current R session via \code{retic
 The environment is stored in a package-specific cache folder rather than the default location used by
 \code{reticulate}, to avoid failures on machines where that default folder is inside a cloud-synced directory
 such as OneDrive.
+
+Python versions above \code{3.11} are explicitly blocked because
+TensorFlow >= 2.16 and several of the above packages are not yet compatible
+with Python 3.12+.
+
+The function automatically detects whether the requested Python version is
+available on the system before attempting environment creation, and emits
+an informative error with installation guidance if it is not found.
 }
 \examples{
 \dontrun{

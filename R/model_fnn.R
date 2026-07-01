@@ -157,7 +157,10 @@ fitFNN <- function(data, trainSize  = 0.8, batchSize  = 32L, nbEpochs  = 50L, st
 
   meta <- .exportForFNN(data = data, filePath = csvPath, verbose = verbose)
 
-  if (verbose) message("Starting FNN training...")
+  if (verbose) {
+    cli::cli_alert_warning("This process may take longer because an automatic prediction step will follow the training.")
+    cli::cli_inform("Starting FNN training...")
+  }
 
   # Python training call
   result <- .callPythonFNN(
@@ -174,9 +177,9 @@ fitFNN <- function(data, trainSize  = 0.8, batchSize  = 32L, nbEpochs  = 50L, st
     finalLayer    = finalLayer,
     outputPath    = outputPath,
     verbose       = verbose
-  )
+    )
 
-  if (verbose) message("FNN training complete.")
+  if (verbose) cli::cli_alert_success("FNN training complete!")
 
   # Output object
   modelObj <- list(
@@ -200,6 +203,11 @@ fitFNN <- function(data, trainSize  = 0.8, batchSize  = 32L, nbEpochs  = 50L, st
   )
 
   class(modelObj) <- "FNN"
+
+  # if (verbose) cli::cli_progress_step("Computing FNN fitted values ")
+  modelObj$fittedValues <- predict(modelObj)
+  # if (verbose) cli::cli_progress_done()
+
   return(modelObj)
 }
 
@@ -217,6 +225,7 @@ fitFNN <- function(data, trainSize  = 0.8, batchSize  = 32L, nbEpochs  = 50L, st
 #' @param threshold Numeric. A classification probability threshold (between 0 and 1).
 #' If the maximum softmax probability for a sample is below this threshold,
 #' its predicted class is labeled as \code{"Doubty"}. Default is \code{NULL}.
+#' @param verbose Logical. If \code{TRUE}, prints training progress and messages. Default is \code{TRUE}.
 #' @param ... Further arguments passed to or from other methods.
 #'
 #' @details
@@ -250,7 +259,7 @@ fitFNN <- function(data, trainSize  = 0.8, batchSize  = 32L, nbEpochs  = 50L, st
 #'
 #' @importFrom stats predict
 #' @export
-predict.FNN <- function(object, newdata = NULL, threshold = NULL, ...) {
+predict.FNN <- function(object, newdata = NULL, threshold = NULL, verbose = TRUE,...) {
 
   if (!inherits(object, "FNN")) {
     stop("'object' must be a fitted FNN model.")
@@ -272,12 +281,20 @@ predict.FNN <- function(object, newdata = NULL, threshold = NULL, ...) {
     if (!is.matrix(newdata) && !is.data.frame(newdata)) {
       stop("'newdata' must be a matrix or a data.frame.")
     }
+
+    if (verbose) cli::cli_progress_step("Preparing and exporting new data to temporary storage...")
     tmpCsv      <- tempfile(pattern = "fnn_newdata_", fileext = ".csv")
     .writeFeaturesCSV(data = newdata, filePath = tmpCsv)
+    if (verbose) cli::cli_progress_done()
+
     predictPath <- tmpCsv
     hasLabels   <- FALSE
   }
 
+  if (verbose) {
+    cli::cli_progress_step("Running FNN model prediction... ")
+    cli::cli_alert_warning("It can take a few moment")
+  }
   # Prediction
   predResult <- .callPythonPredict(
     modelPath   = object$modelPath,
@@ -287,15 +304,26 @@ predict.FNN <- function(object, newdata = NULL, threshold = NULL, ...) {
     hasLabels   = hasLabels
   )
 
+  # softmaxProbs <- predResult$softmax
+  # classNames   <- object$classNames
+  #
+  # maxProbs    <- apply(softmaxProbs, 1, max)
+  # finalClass  <- classNames[apply(softmaxProbs, 1, which.max)]
+
+  if (verbose) cli::cli_progress_step("Prediction probabilities... ")
+
   softmaxProbs <- predResult$softmax
   classNames   <- object$classNames
 
-  maxProbs    <- apply(softmaxProbs, 1, max)
-  finalClass  <- classNames[apply(softmaxProbs, 1, which.max)]
+  max_idx    <- max.col(softmaxProbs, ties.method = "first")
+  finalClass <- classNames[max_idx]
+  maxProbs   <- softmaxProbs[cbind(seq_len(nrow(softmaxProbs)), max_idx)]
 
   if (!is.null(threshold)) {
     finalClass[maxProbs < threshold] <- "Doubty"
   }
+
+  if (verbose) cli::cli_progress_done()
 
   return(list(
     class       = finalClass,
@@ -363,10 +391,10 @@ summary.FNN <- function(object, ...) {
   object <- .resolveFNNPaths(object)
 
   # In-sample predictions
-  pred        <- predict.FNN(object, newdata = NULL)
+  # pred        <- predict.FNN(object, newdata = NULL)
   true_labels <- as.character(object$labels)
-  # confusion   <- table(Predicted = pred$class, Actual = true_labels)
-  cf          <- caret::confusionMatrix(factor(pred$class, levels = object$classNames), as.factor(true_labels))
+  # cf          <- caret::confusionMatrix(factor(pred$class, levels = object$classNames), as.factor(true_labels))
+  cf          <- caret::confusionMatrix(factor(object$fittedValues$class, levels = object$classNames), as.factor(true_labels))
   confusion   <- cf$table
   accuracy    <- sum(diag(confusion)) / sum(confusion)
 

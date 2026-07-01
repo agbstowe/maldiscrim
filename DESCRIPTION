@@ -1,6 +1,6 @@
 Package: maldiscrim
 Title: Analysis and Discrimination of MALDI-TOF Mass Spectra
-Version: 0.0.1
+Version: 0.0.2
 Authors@R: c(
     person("Stowe", "AGBESSI", , "agb.stowe@gmail.com", role = c("aut", "cre")),
     person("Paul Marie", "GROLLEMUND", , role = "aut" )
@@ -16,9 +16,10 @@ LazyData: true
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
 Depends: R (>= 4.0.0)
-SystemRequirements: Python (>= 3.8), TensorFlow (>= 2.12, < 2.16)
+SystemRequirements: Python (>= 3.8, < 3.12), TensorFlow (>= 2.12, < 2.16)
 Imports: 
     caret,
+    cli,
     dplyr,
     fastDummies,
     fda,
@@ -35,6 +36,7 @@ Imports:
     pals,
     plotly,
     pls,
+    progress,
     RColorBrewer,
     reticulate,
     tidyr,
