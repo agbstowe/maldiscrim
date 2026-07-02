@@ -325,3 +325,83 @@ Uses gradient ascent to synthesize an idealized pseudo-spectrum that maximizes t
 ```{r fnn-actmax, message = FALSE, warning = FALSE}
 # plotActivationMaxFNN(fnn_model, classIndex = 1, steps = 50)
 ```
+
+---
+
+### 8. Auto-Supervised Classification via Transfer Learning (`transferFNN`)
+
+#### 8.1 Concept
+
+Transfer learning is a machine learning paradigm in which a model pre-trained on a source task is reused as the starting point for a related target task. Rather than initializing all network weights randomly, the transferred backbone carries representations already learned from a reference dataset, allowing the model to converge faster and more reliably — particularly when the target dataset is small, which is a common scenario in microbiological settings where acquiring sufficient biological replicates per strain is resource-intensive.
+
+In `maldiscrim`, `transferFNN` leverages the reference Functional Neural Network bundled with the package, trained on *S. thermophilus* reference spectra. The backbone — the two `FunctionalConvolution` layers that capture generic spectral representations — is reused and selectively frozen, while a new `FunctionalDense` classification head is grafted and trained from scratch on the new target data. Crucially, the source training data is never redistributed: only the learned weights are carried over.
+
+
+#### 8.2 Transfer Strategies
+
+Three freezing strategies control how much of the source backbone is retrained on the target data:
+
+| Strategy | Frozen layers | Trainable layers | 
+|---|---|---|
+| `"feature_extraction"` (default) | Both `FunctionalConvolution` | New head only |
+| `"fine_tune_partial"` | First `FunctionalConvolution` | Second conv. + new head | 
+| `"fine_tune_full"` | None | Entire network + new head |
+
+The `nFreezeLayers` argument allows overriding the strategy with a direct integer if finer control is needed.
+
+#### 8.3 Training
+
+`transferFNN` accepts the same data format as `fitFNN` — a preprocessed spectral matrix with strain labels as row names. When `sourceModel = NULL` (default), the package's bundled pre-trained model is used automatically.
+
+For demonstration, we first simulate a new set of spectra representing hypothetical new strains, using `SimulateSpectrum` as introduced in Section 4. The transfer learning call is shown below; as with `fitFNN`, training is computationally intensive and is therefore presented with `eval = FALSE`.
+
+```{r transfer-simulate, eval = FALSE}
+# Simulate new target spectra 
+new_spectra <- SimulateSpectrum(data = spectra100, n = 60, k = 3, clust_method = "gmm")
+```
+
+```{r transfer-train, eval = FALSE}
+# Transfer learning from the package's bundled pre-trained FNN
+# sourceModel = NULL (default) loads the reference model automatically
+transfer_model <- transferFNN(
+  data = new_spectra, sourceModel = NULL, strategy = "feature_extraction", nbEpochs  = 50L, 
+  stepsPerEpoch = 16L,patience = 5L, monitor = "val_loss",
+  finalLayer    = list(nFunctions = 50L, resolution = 19966L, basisType  = "Fourier", activation = "softmax", 
+                       pooling    = TRUE), outputPath = "outputs/transferFNN", verbose    = TRUE)
+```
+
+A custom source model produced by a previous `fitFNN` or `transferFNN` call can also be supplied explicitly via the `sourceModel` argument — for instance, when targeting a species that differs substantially from the bundled reference:
+
+```{r transfer-custom-source, eval = FALSE}
+# Advanced usage: supply a custom source model
+transfer_model <- transferFNN(sourceModel = fnn_model, data  = new_spectra, strategy    = "fine_tune_partial")
+```
+
+#### 8.4 Post-Training Analysis
+
+The object returned by `transferFNN` is of class `"FNN"`, identical in structure to the output of `fitFNN`. All downstream functions — `summary()`, `predict()`, and the full suite of diagnostic plots — therefore apply without modification, following the exact same interface described in Section 7.
+
+```{r transfer-summary, eval = FALSE}
+# Structured diagnostic overview
+summary(transfer_model)
+```
+
+```{r transfer-predict, eval = FALSE}
+# Predict on new spectral data
+pred_transfer <- predict(transfer_model, newdata = new_spectra)
+
+# Predicted classes and associated maximum posterior probabilities
+head(pred_transfer$class)
+head(pred_transfer$probability)
+```
+
+```{r transfer-plots, eval = FALSE}
+# Training convergence
+plotTrainingFNN(transfer_model)
+
+# In-sample confusion matrix
+plotConfusionFNN(transfer_model)
+
+# Latent space projections
+plotUMAPFNN(transfer_model, on = "softmax", seed = 42)
+```

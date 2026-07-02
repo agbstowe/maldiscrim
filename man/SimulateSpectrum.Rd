@@ -61,6 +61,9 @@ Finally, spectra are reconstructed using the Karhunen-Loeve expansion formula:
 \eqn{\phi_k(t)} represent the eigenfunctions, and \eqn{\xi_{k, s}} are the newly simulated scores.
 The reconstructed curves are then bounded to positive intensities via a flattening step and interpolated back onto the original
 m/z grid.
+
+It should be noted that when simulating a dataset for the same task (for prediction purposes, for example),
+the same clustering method (\code{clust_method}) should be used to avoid boundary shifts and potential label switching.
 }
 \examples{
 \dontrun{
