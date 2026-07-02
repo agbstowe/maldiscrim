@@ -1,3 +1,9 @@
 .Rproj.user
 .Rhistory
 inst/doc
+###
+outputs/
+*.csv
+*.h5
+outputs/transferFNN/transferFNN_input.csv
+outputs/fnn/FNN_input.csv

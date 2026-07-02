@@ -162,6 +162,7 @@ fitFNN <- function(data, trainSize  = 0.8, batchSize  = 32L, nbEpochs  = 50L, st
     cli::cli_inform("Starting FNN training...")
   }
 
+
   # Python training call
   result <- .callPythonFNN(
     csvPath       = meta$filePath,
@@ -273,7 +274,7 @@ predict.FNN <- function(object, newdata = NULL, threshold = NULL, verbose = TRUE
   # Python environment check
   .checkPythonEnv()
 
-  if (is.null(newdata)) {
+    if (is.null(newdata)) {
     predictPath <- object$dataPath
     hasLabels   <- TRUE
 
@@ -295,6 +296,7 @@ predict.FNN <- function(object, newdata = NULL, threshold = NULL, verbose = TRUE
     cli::cli_progress_step("Running FNN model prediction... ")
     cli::cli_alert_warning("It can take a few moment")
   }
+
   # Prediction
   predResult <- .callPythonPredict(
     modelPath   = object$modelPath,
